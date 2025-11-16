@@ -15,7 +15,9 @@
   "author": "Mr arem",
   "main": "dist/app.js",
   "scripts": {
-    "dev": "ts-node-esm"
+    "dev": "ts-node-esm src/app.ts",
+    "build": "tsc",
+    "start": "node dist/app.js"
   },
   "dependencies": {
     "dotenv": "^17.2.3",
