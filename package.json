@@ -1,0 +1,30 @@
+{
+  "name": "partnermanager",
+  "version": "1.0.0",
+  "description": "",
+  "homepage": "https://github.com/ART1KZ/PartnerManager#readme",
+  "bugs": {
+    "url": "https://github.com/ART1KZ/PartnerManager/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ART1KZ/PartnerManager.git"
+  },
+  "type": "commonjs",
+  "license": "ISC",
+  "author": "Mr arem",
+  "main": "dist/app.js",
+  "scripts": {
+    "dev": "ts-node-esm"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "nodemailer": "^7.0.10",
+    "vk-io": "^4.10.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
