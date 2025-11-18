@@ -51,14 +51,16 @@ export class DgisClient {
         const legacyMatch = html.match(
             /__INITIAL_STATE__\s*=\s*({[\s\S]*?})\s*;<\/script>/
         );
-        if (legacyMatch) {
+
+        if (legacyMatch && legacyMatch[1]) {
             return JSON.parse(legacyMatch[1]);
         }
 
         const initialMatch = html.match(
             /var\s+initialState\s*=\s*JSON\.parse\('([\s\S]*?)'\);/
         );
-        if (!initialMatch) {
+
+        if (!initialMatch || !initialMatch[1]) {
             throw new Error("initialState/INITIAL_STATE не найден в HTML");
         }
 
@@ -70,6 +72,7 @@ export class DgisClient {
     getFirmIdFromUrl(firmUrl: string) {
         const u = new URL(firmUrl);
         const parts = u.pathname.split("/").filter(Boolean);
+
         return parts[parts.length - 1];
     }
 
