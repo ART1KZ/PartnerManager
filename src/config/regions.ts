@@ -1,13 +1,13 @@
 export const regions = {
     PK: {
         name: "Пермский край",
-        short_name: "ПК",
+        shortName: "ПК",
         sheet: {
             name: "Пермский край новые партнеры", // Название листа в гугл таблице с партнерами из Удмуртской Республики
             headers: { // Название ключей таблицы (ячейки в первом столбце)
                 number: "П/П",
                 city: "Город",
-                partner_name: "Партнер название",
+                partnerName: "Партнер название",
                 phone: "тел. для связи",
                 messenger: "Мессенджер",
                 email: "эл. почта",
@@ -17,19 +17,19 @@ export const regions = {
             },
         },
         cities: [
-            { name: "Пермь", dgis_name: "perm" },
-            { name: "Березники", dgis_name: "berezniki" },
+            { name: "Пермь", dgisName: "perm" },
+            { name: "Березники", dgisName: "berezniki" },
         ],
     },
     UR: {
         name: "Удмуртская Республика",
-        short_name: "УР",
+        shortName: "УР",
         sheet: {
             name: "Удмуртия новые", // Название листа в гугл таблице с партнерами из Пермского Края
             headers: { // Название ключей таблицы (ячейки в первом столбце)
                 number: "П/П",
                 city: "Город",
-                partner_name: "Партнер название",
+                partnerName: "Партнер название",
                 phone: "тел. для связи",
                 messenger: "Мессенджер",
                 email: "эл. почта",
@@ -40,8 +40,8 @@ export const regions = {
             },
         },
         cities: [
-            { name: "Глазов", dgis_name: "glazov" },
-            { name: "Сарапул", dgis_name: "sarapul" },
+            { name: "Глазов", dgisName: "glazov" },
+            { name: "Сарапул", dgisName: "sarapul" },
         ],
     },
 };

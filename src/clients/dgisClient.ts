@@ -100,8 +100,12 @@ export class DgisClient {
     }
 
     // Парсим HTML карточки заведения в удобный плоский объект
-    parseFirmFromHtml(html: string, firmUrl: string) {
-        const firmId = this.getFirmIdFromUrl(firmUrl);
+    parseFirmFromHtml(html: string, firmUrl: string): dgisFirmData {
+        const u = new URL(firmUrl);
+        const parts = u.pathname.split("/").filter(Boolean);
+        const firmId = parts[parts.length - 1];
+        const citySlug = parts[0];
+
         const state = this.extractStateFromHtml(html);
 
         // Берём профиль заведения из initialState по ID
@@ -159,8 +163,8 @@ export class DgisClient {
             )
             .map((c: any) => c.value || c.url || c.text);
 
-        // Чистим редирект‑обёртку и убираем дубликаты
-        const normalizedWebsites = Array.from(
+        // Чистим редирект-обёртку и убираем дубликаты
+        const normalizedWebsites  = Array.from(
             new Set(
                 rawWebsites
                     .map((w: string) => this.normalizeWebsite(w))
@@ -204,6 +208,7 @@ export class DgisClient {
             website,
             social,
             rubrics,
+            citySlug,
         };
     }
 
