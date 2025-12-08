@@ -146,13 +146,7 @@ export class GoogleSheetsClient {
 
         // Телефоны
         const phonesStr =
-            dgisFirmData.phones && dgisFirmData.phones.length > 0
-                ? dgisFirmData.phones
-                      .map((phone, index) => {
-                          phone.startsWith(",") || index > 0 ? phone : `'${phone}`;
-                      })
-                      .join(", ")
-                : "";
+            dgisFirmData.phones && dgisFirmData.phones.length > 0 ? `'${dgisFirmData.phones.join(", ")}` : "";
 
         // Email'ы
         const emailsStr =
