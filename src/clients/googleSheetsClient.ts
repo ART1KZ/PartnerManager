@@ -1,8 +1,8 @@
 import { GoogleSpreadsheet } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
-import { env } from "../config/env.ts";
-import { regions } from "../config/regions.ts";
-import type { DgisFirmData } from "../types.ts";
+import { env } from "../config/env.js";
+import { regions } from "../config/regions.js";
+import type { DgisFirmData, UniquePartnerDatasInSheet } from "../types.js";
 
 type Cell = string | number | boolean | null;
 
@@ -74,7 +74,6 @@ export class GoogleSheetsClient {
 
             const region = regions[regionKey];
             for (const cityData of region.cities) {
-                // dgisName / citySlug — camelCase-версия того, что у тебя было dgis_name / city_slug
                 if (cityData.dgisName !== dgisFirmData.citySlug) continue;
 
                 sheetConfig = region.sheet;
@@ -88,65 +87,75 @@ export class GoogleSheetsClient {
         return { sheetConfig, cityName };
     }
 
-    // --------- Хелперы по соцсетям ---------
-
     /**
-     * Выбрать главную соцсеть (URL):
-     * - если есть vkontakte/vk — вернуть её URL
-     * - иначе вернуть URL первой соцсети в массиве
+     * Массовое добавление партнёров
+     * Группирует по листам и добавляет батчами
      */
-    private pickPrimarySocial(social: { type: string; url: string }[]): string {
-        if (!social || social.length === 0) return "";
+    async appendPartnerRows(firms: DgisFirmData[]): Promise<void> {
+        // Группируем фирмы по листам
+        const firmsBySheet = new Map<string, DgisFirmData[]>();
 
-        const vk = social.find(
-            (s) => s.type === "vkontakte" || s.type === "vk"
-        );
-        const target = vk ?? social[0];
+        for (const firm of firms) {
+            const mapping = this.getPartnersSheetByFirmData(firm);
+            if (!mapping) {
+                console.warn(
+                    `Пропуск: лист не найден для citySlug="${firm.citySlug}"`
+                );
+                continue;
+            }
 
-        return target.url || "";
-    }
+            const sheetName = mapping.sheetConfig.name;
 
-    /**
-     * Выбрать название мессенджера:
-     * - сначала vkontakte
-     * - потом telegram
-     * - потом whatsapp
-     * - если нет — пусто
-     */
-    private pickMessenger(social: { type: string; url: string }[]): string {
-        if (!social || social.length === 0) return "";
+            // Если по названию листа ничего не записано, то записывается пустой массив
+            if (!firmsBySheet.has(sheetName)) {
+                firmsBySheet.set(sheetName, []);
+            }
 
-        const vk = social.find(
-            (s) => s.type === "vkontakte" || s.type === "vk"
-        );
-        if (vk) return "ВК";
-
-        const tg = social.find((s) => s.type === "telegram");
-        if (tg) return "Телеграм";
-
-        const wa = social.find((s) => s.type === "whatsapp");
-        if (wa) return "Ватсап";
-
-        return "";
-    }
-
-    // --------- Основной метод записи партнёра ---------
-
-    async appendPartnerRow(dgisFirmData: DgisFirmData): Promise<void> {
-        // Находим конфиг листа и русское имя города по citySlug
-        const mapping = this.getPartnersSheetByFirmData(dgisFirmData);
-        if (!mapping) {
-            throw new Error(
-                `Не удалось найти лист для citySlug="${dgisFirmData.citySlug}"`
-            );
+            // Добавление обьекта заведения в массив по названию листа
+            firmsBySheet.get(sheetName)!.push(firm);
         }
 
+        for (const [sheetName, sheetFirms] of firmsBySheet) {
+            const mapping = this.getPartnersSheetByFirmData(sheetFirms[0]);
+            if (!mapping) continue;
+
+            const uniquePartnerDatasInSheet =
+                await this.getUniquePartnerDatasInSheet(
+                    mapping.sheetConfig.name,
+                    mapping.sheetConfig.headers
+                );
+
+            const newFirms = sheetFirms.filter(
+                (firmData) =>
+                    !this.isExistingFirm(uniquePartnerDatasInSheet, firmData)
+            );
+
+            const rows = newFirms.map((firm) =>
+                this.convertFirmToRow(firm, mapping)
+            );
+
+            await this.appendRows(rows, sheetName);
+            console.log(
+                `✓ Добавлено ${rows.length} партнёров в "${sheetName}"`
+            );
+        }
+    }
+
+    /**
+     * Преобразование DgisFirmData в строку таблицы
+     */
+    private convertFirmToRow(
+        dgisFirmData: DgisFirmData,
+        mapping: { sheetConfig: any; cityName: string }
+    ): Record<string, Cell> {
         const { sheetConfig, cityName } = mapping;
         const headers = sheetConfig.headers;
 
         // Телефоны
         const phonesStr =
-            dgisFirmData.phones && dgisFirmData.phones.length > 0 ? `'${dgisFirmData.phones.join(", ")}` : "";
+            dgisFirmData.phones && dgisFirmData.phones.length > 0
+                ? `'${dgisFirmData.phones.join(", ")}`
+                : "";
 
         // Email'ы
         const emailsStr =
@@ -154,43 +163,168 @@ export class GoogleSheetsClient {
                 ? dgisFirmData.emails.join(", ")
                 : "";
 
-        // Главная соцсеть (URL: приоритет vkontakte/vk, иначе первая)
-        const primarySocial = this.pickPrimarySocial(dgisFirmData.social || []);
+        const messenger = dgisFirmData.vkLink ? "ВК" : "";
 
-        // Мессенджер (название: ВК / Телеграм / Ватсап, иначе пусто)
-        const messenger = this.pickMessenger(dgisFirmData.social || []);
+        const social = dgisFirmData.vkLink || "";
 
-        const writeData =
-            messenger === "ВК"
-                ? "в вк"
-                : dgisFirmData.emails[0]
-                ? "на почту"
-                : "не написал";
-
-        const dateStr = new Date().toLocaleDateString("ru-RU");
-        const infoStr =
-            writeData === "не написал"
-                ? writeData
-                : `Написал ${writeData}, ${dateStr}`;
-
-        // Дата (если колонка есть в headers)
         const hasDateColumn = Boolean(headers.date);
+        const dateStr = new Date().toLocaleDateString("ru-RU");
+
+        let infoStr = "";
+
+        dgisFirmData.vkLink ? (infoStr += "в вк") : null;
+        dgisFirmData.emails.length > 0
+            ? (infoStr += infoStr.length > 0 ? "и на почту" : "на почту")
+            : null;
+
+        infoStr = "Написал " + infoStr;
+
+        if (!hasDateColumn) {
+            infoStr += ` ${dateStr}`;
+        }
 
         const row: Record<string, Cell> = {};
 
         // Маппинг на реальные заголовки таблицы
-        row[headers.city] = cityName; // "Город"
-        row[headers.partnerName] = dgisFirmData.name; // "Партнер название"
-        row[headers.phone] = phonesStr; // "тел. для связи"
-        row[headers.messenger] = messenger; // "Мессенджер" (НАЗВАНИЕ)
-        row[headers.email] = emailsStr; // "эл. почта"
-        row[headers.social] = primarySocial; // "Соц.сеть" (ССЫЛКА)
-        row[headers.caller] = "Бот-менеджер"; // "Кто звонил"
-        row[headers.info] = infoStr; // "Информация"
+        row[headers.city] = cityName;
+        row[headers.partnerName] = dgisFirmData.category
+            ? `${dgisFirmData.name}, ${dgisFirmData.category}`
+            : dgisFirmData.name || "";
+        row[headers.phone] = phonesStr;
+        row[headers.messenger] = messenger;
+        row[headers.email] = emailsStr;
+        row[headers.social] = social;
+        row[headers.info] = infoStr;
+        row[headers.caller] = "Бот-менеджер";
+        row[headers.dgisId] = dgisFirmData.id ? dgisFirmData.id : "";
+
         if (hasDateColumn) {
-            row[headers.date] = dateStr; // "Дата"
+            row[headers.date] = dateStr;
         }
 
-        await this.appendRow(row, sheetConfig.name);
+        return row;
+    }
+
+    /**
+     * Добавление одного партнёра (для единичных случаев)
+     */
+    async appendPartnerRow(dgisFirmData: DgisFirmData): Promise<void> {
+        const mapping = this.getPartnersSheetByFirmData(dgisFirmData);
+
+        if (!mapping) {
+            throw new Error(
+                `Не удалось найти лист для citySlug="${dgisFirmData.citySlug}"`
+            );
+        }
+
+        const uniquePartnerDatasInSheet =
+            await this.getUniquePartnerDatasInSheet(
+                mapping.sheetConfig.name,
+                mapping.sheetConfig.headers
+            );
+        const isFirmOnSheet = this.isExistingFirm(
+            uniquePartnerDatasInSheet,
+            dgisFirmData
+        );
+
+        if (isFirmOnSheet) {
+            console.log("Заведение уже есть в таблице");
+            return;
+        }
+        const row = this.convertFirmToRow(dgisFirmData, mapping);
+        await this.appendRow(row, mapping.sheetConfig.name);
+    }
+
+    async getAllHeaderRows(sheetName: string, headerName: string) {
+        const sheet = await this.getSheet(sheetName);
+        const rows = await sheet.getRows();
+
+        return rows.map((row) => row.get(headerName));
+    }
+
+    private normalizeFirmName(name: string): string {
+        return name
+            .toLowerCase()
+            .trim()
+            .replace(/\s+/g, " ") // множественные пробелы в один
+            .replace(/[«»"']/g, "") // убираем кавычки разных типов
+            .replace(/[‐–—-]/g, "-"); // нормализуем дефисы
+    }
+
+    isExistingFirm(
+        partnerUniqueDatas: UniquePartnerDatasInSheet,
+        dgisFirmData: DgisFirmData
+    ) {
+        // Приведение имени заведение к общему формату
+        const normalizedFirmName = this.normalizeFirmName(dgisFirmData.name);
+
+        return (
+            // Существует ли заведение с указанной ссылкой на ВК в листе (таблице)
+            (dgisFirmData.vkLink &&
+                partnerUniqueDatas.vks.includes(dgisFirmData.vkLink)) ||
+            // Существует ли заведение с указанным 2гис id в листе (таблице)
+            partnerUniqueDatas.dgisIds.includes(dgisFirmData.id) ||
+            // Существует ли заведение с указанными почтами в листе (таблице)
+            dgisFirmData.emails.some((email) =>
+                partnerUniqueDatas.emails.includes(email)
+            ) ||
+            partnerUniqueDatas.names.some((firmName) =>
+                this.normalizeFirmName(firmName).includes(normalizedFirmName)
+            )
+        );
+    }
+
+    /**
+     * Получить уникальные данные партнёров из листа для проверки дубликатов
+     * @param sheetName - название листа (например, "Пермский край новые партнеры")
+     * @param headers - объект headers из sheetConfig (например, regions.PK.sheet.headers)
+     */
+    async getUniquePartnerDatasInSheet(
+        sheetName: string,
+        headers: Record<string, string>
+    ): Promise<UniquePartnerDatasInSheet> {
+        const rows = await this.getAllRows(sheetName);
+
+        const names = new Set<string>();
+        const vks = new Set<string>();
+        const dgisIds = new Set<string>();
+        const emails = new Set<string>();
+
+        for (const row of rows) {
+            // Собираем имена
+            const name = row[headers.partnerName];
+            if (name && typeof name === "string" && name.trim()) {
+                names.add(name.trim());
+            }
+
+            // Собираем VK ссылки
+            const vk = row[headers.social];
+            if (vk && typeof vk === "string" && vk.trim()) {
+                vks.add(vk.trim());
+            }
+
+            // Собираем 2GIS ID
+            const dgisId = row[headers.dgisId];
+            if (dgisId && typeof dgisId === "string" && dgisId.trim()) {
+                dgisIds.add(dgisId.trim());
+            }
+
+            // Собираем emails (может быть несколько через запятую)
+            const emailStr = row[headers.email];
+            if (emailStr && typeof emailStr === "string" && emailStr.trim()) {
+                const emailList = emailStr
+                    .split(",")
+                    .map((e) => e.trim())
+                    .filter(Boolean);
+                emailList.forEach((email) => emails.add(email));
+            }
+        }
+
+        return {
+            names: Array.from(names),
+            vks: Array.from(vks),
+            dgisIds: Array.from(dgisIds),
+            emails: Array.from(emails),
+        };
     }
 }

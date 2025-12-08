@@ -1,5 +1,6 @@
 import axios from "axios";
 import { URL } from "url";
+import type { DgisFirmData } from "../types.js"
 
 export class DgisClient {
     // Базовый домен 2ГИС (ПК-версия)
@@ -100,10 +101,10 @@ export class DgisClient {
     }
 
     // Парсим HTML карточки заведения в удобный плоский объект
-    parseFirmFromHtml(html: string, firmUrl: string): dgisFirmData {
+    parseFirmFromHtml(html: string, firmUrl: string): DgisFirmData {
         const u = new URL(firmUrl);
         const parts = u.pathname.split("/").filter(Boolean);
-        const firmId = parts[parts.length - 1];
+        const firmId = parts[parts.length - 1] as string;
         const citySlug = parts[0];
 
         const state = this.extractStateFromHtml(html);
@@ -164,7 +165,7 @@ export class DgisClient {
             .map((c: any) => c.value || c.url || c.text);
 
         // Чистим редирект-обёртку и убираем дубликаты
-        const normalizedWebsites  = Array.from(
+        const normalizedWebsites = Array.from(
             new Set(
                 rawWebsites
                     .map((w: string) => this.normalizeWebsite(w))
@@ -176,23 +177,22 @@ export class DgisClient {
         const website: string | null =
             normalizedWebsites.length > 0 ? normalizedWebsites[0] : null;
 
-        const social = flatContacts
+        const rubricsList = Array.isArray(entity.rubrics) ? entity.rubrics : [];
+        const primaryRubric = rubricsList.find(
+            (r: any) => r.kind === "primary"
+        );
+        const category = primaryRubric ? primaryRubric.name.toLowerCase() : null;
+        
+        const vkLink = flatContacts
             .filter((c: any) =>
                 [
                     "vkontakte",
-                    "telegram",
-                    "instagram",
                     "vk",
-                    "facebook",
-                    "ok",
-                    "youtube",
-                    "whatsapp",
                 ].includes(c.type)
             )
-            .map((c: any) => ({
-                type: c.type,
-                url: c.value || c.url || c.text,
-            }));
+            .map((c: any) => (
+                c.url
+            ))[0] || null;
 
         const rubrics = Array.isArray(entity.rubrics)
             ? entity.rubrics.map((r: any) => r.name)
@@ -202,11 +202,12 @@ export class DgisClient {
             id: firmId,
             url: firmUrl,
             name,
+            category,
             address: addressFull,
             phones,
             emails,
             website,
-            social,
+            vkLink,
             rubrics,
             citySlug,
         };
@@ -263,8 +264,12 @@ export class DgisClient {
 
                 try {
                     const firmObj = await this.fetchFirmData(firmUrl);
+
+                    const hasVkOrEmail = firmObj.vkLink || firmObj.emails.length > 0;
+
+                    if (!hasVkOrEmail) continue;
+
                     results.push(firmObj);
-                    console.log("OK:", firmObj.name, "->", firmUrl);
                 } catch (e: any) {
                     console.error("FAIL:", firmUrl, e.message);
                 }

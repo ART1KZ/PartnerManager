@@ -23,19 +23,22 @@ export interface ContactResult {
 }
 
 export interface DgisFirmData {
-    id?: string;
+    id: string;
     url: string;
     name: string;
-    address: string; 
+    category: string | null;
+    address: string;
     phones: string[];
     emails: string[];
     website: string | null;
-    social: DgisSocialObj[];
-    rubrics: string[]; 
+    vkLink: string | null;
+    rubrics: string[];
     citySlug?: string;
 }
 
-export interface DgisSocialObj {
-    type: string;
-    url: string;
+export interface UniquePartnerDatasInSheet {
+    names: string[];
+    vks: string[];
+    dgisIds: string[];
+    emails: string[];
 }
