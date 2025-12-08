@@ -174,7 +174,7 @@ export class GoogleSheetsClient {
 
         dgisFirmData.vkLink ? (infoStr += "в вк") : null;
         dgisFirmData.emails.length > 0
-            ? (infoStr += infoStr.length > 0 ? "и на почту" : "на почту")
+            ? (infoStr += infoStr.length > 0 ? " и на почту" : "на почту")
             : null;
 
         infoStr = "Написал " + infoStr;
