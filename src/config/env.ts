@@ -11,5 +11,9 @@ export const env = {
         serviceEmail: requireEnv("GOOGLE_SERVICE_EMAIL"),
         serviceKey: requireEnv("GOOGLE_SERVICE_KEY").replace(/\\n/g, "\n"),
         spreadsheetId: requireEnv("GOOGLE_SPREADSHEET_ID"),
+    },
+    vk: {
+        username: requireEnv("VK_USERNAME"),
+        password: requireEnv("VK_PASSWORD"),
     }
 };
