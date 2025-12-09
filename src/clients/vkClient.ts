@@ -1,4 +1,6 @@
-import easyvk from "easyvk";
+// src/clients/vkBrowserClient.ts
+
+import puppeteer from 'puppeteer';
 import type { DgisFirmData } from "../types.js";
 
 export interface VKMessageResult {
@@ -6,135 +8,312 @@ export interface VKMessageResult {
     vkLink: string;
     status: "success" | "error" | "skipped";
     error?: string;
-    messageId?: number;
 }
 
-export class VKClient {
-    private vk: any;
+export class VkClient {
+    private browser: any;
+    private page: any;
     private initialized = false;
 
-    // Настройки антиспама
-    private readonly DELAY_BETWEEN_MESSAGES = 3000; 
-    private readonly MAX_RETRIES = 3;
+    private delay(ms: number): Promise<void> {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
 
-    constructor() {}
-
-    /**
-     * Инициализация VK клиента
-     */
-    async init(username: string, password: string, appId?: number) {
+    async init(username: string, password: string) {
         if (this.initialized) return;
 
+        console.log("🌐 Запускаем браузер...");
+
+        this.browser = await puppeteer.launch({
+            headless: false,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-blink-features=AutomationControlled'
+            ]
+        });
+
+        this.page = await this.browser.newPage();
+
+        await this.page.setUserAgent(
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        );
+
+        await this.page.setViewport({ width: 1280, height: 720 });
+
+        console.log("🔐 Авторизация VK...");
+
+        await this.page.goto('https://vk.com', { 
+            waitUntil: 'networkidle2',
+            timeout: 30000 
+        });
+
+        await this.delay(3000);
+
         try {
-            this.vk = await easyvk({
-                username: username,
-                password: password,
-                reauth: true,
-                ...(appId && { appId }) // Опционально: ID вашего VK приложения
+            const switchButton = await this.page.$('button[data-testid="enter-another-way"]');
+            
+            if (switchButton) {
+                await switchButton.click();
+                await this.delay(2000);
+            }
+
+            await this.page.waitForSelector('input[name="login"]', { timeout: 10000 });
+            await this.page.click('input[name="login"]');
+            await this.delay(500);
+            await this.page.type('input[name="login"]', username, { delay: 100 });
+
+            await this.delay(1000);
+
+            const continueButtons = await this.page.$$('button[type="submit"]');
+            if (continueButtons.length > 0) {
+                await continueButtons[0].click();
+            }
+
+            await this.delay(3000);
+
+            // Проверка на капчу после ввода номера
+            const urlAfterPhone = this.page.url();
+            if (urlAfterPhone.includes('captcha')) {
+                console.log("⚠️ КАПЧА! Пройдите капчу в браузере и нажмите Enter...");
+                await new Promise(resolve => {
+                    process.stdin.once('data', () => resolve(null));
+                });
+                await this.delay(2000);
+            }
+
+            try {
+                await this.page.waitForSelector('button[data-test-id="other-verification-methods"]', { timeout: 5000 });
+                await this.page.click('button[data-test-id="other-verification-methods"]');
+                await this.delay(2000);
+            } catch (e) {
+                // Не требуется
+            }
+
+            await this.delay(1000);
+            
+            try {
+                const elements = await this.page.$$('button, div[role="button"], div[class*="Cell"]');
+                
+                for (const el of elements) {
+                    const text = await this.page.evaluate((element: any) => element.textContent || '', el);
+                    
+                    if (text.includes('Password') && text.includes('Enter your account password')) {
+                        await el.click();
+                        await this.delay(2000);
+                        break;
+                    }
+                }
+            } catch (e) {
+                // Ничего не делаем
+            }
+
+            await this.page.waitForSelector('input[name="password"]', { timeout: 15000 });
+            await this.page.click('input[name="password"]');
+            await this.delay(500);
+            await this.page.type('input[name="password"]', password, { delay: 100 });
+
+            await this.delay(1000);
+
+            const submitButtons = await this.page.$$('button[type="submit"]');
+            if (submitButtons.length > 0) {
+                await submitButtons[submitButtons.length - 1].click();
+            }
+
+            await this.delay(5000);
+
+            const currentUrl = this.page.url();
+
+            if (currentUrl.includes('act=authcheck') || currentUrl.includes('2fa')) {
+                console.log("⚠️ 2FA! Введите код в браузере и нажмите Enter...");
+                await new Promise(resolve => {
+                    process.stdin.once('data', () => resolve(null));
+                });
+                await this.delay(2000);
+            }
+
+            if (currentUrl.includes('captcha')) {
+                console.log("⚠️ КАПЧА! Пройдите капчу в браузере и нажмите Enter...");
+                await new Promise(resolve => {
+                    process.stdin.once('data', () => resolve(null));
+                });
+                await this.delay(2000);
+            }
+
+            const finalUrl = this.page.url();
+            
+            if (finalUrl.includes('vk.com/feed') || 
+                finalUrl.includes('vk.com/im') || 
+                finalUrl === 'https://vk.com/' ||
+                !finalUrl.includes('login') && !finalUrl.includes('id.vk.com')) {
+                
+                this.initialized = true;
+                console.log("✅ Вход выполнен!\n");
+            } else {
+                throw new Error(`Не удалось войти. URL: ${finalUrl}`);
+            }
+
+        } catch (error: any) {
+            console.error("❌ Ошибка входа:", error.message);
+            console.log("💡 Войдите вручную и нажмите Enter...");
+            
+            await new Promise(resolve => {
+                process.stdin.once('data', () => resolve(null));
             });
 
             this.initialized = true;
-            console.log("✓ VK клиент успешно инициализирован");
-        } catch (error: any) {
-            throw new Error(`Ошибка инициализации VK: ${error.message}`);
+            console.log("✅ Продолжаем работу...\n");
         }
     }
 
-    /**
-     * Проверка инициализации
-     */
-    private ensureInitialized() {
+    async sendMessage(vkLink: string, message: string): Promise<VKMessageResult> {
         if (!this.initialized) {
-            throw new Error("VK клиент не инициализирован. Вызовите init() сначала.");
+            throw new Error("VK браузер не инициализирован");
         }
-    }
 
-    /**
-     * Извлечь screen_name из VK ссылки
-     * https://vk.com/maslenica.perm -> maslenica.perm
-     * https://vk.com/club123456 -> club123456
-     */
-    private extractScreenName(vkLink: string): string {
-        return vkLink
-            .replace(/https?:\/\/(www\.)?vk\.com\//i, "")
-            .replace(/\?.*$/, "") // Убирает query параметры
-            .trim();
-    }
+        const screenName = vkLink.replace(/https?:\/\/(www\.|m\.)?vk\.com\//i, "").replace(/\?.*$/, "");
 
-    /**
-     * Получить peer_id для отправки сообщения
-     * Поддерживает как группы (club/public), так и пользователей
-     */
-    private async getPeerId(screenName: string): Promise<number> {
         try {
-            // Если это численный ID группы (club123456)
-            if (/^club\d+$/.test(screenName)) {
-                const groupId = parseInt(screenName.replace("club", ""));
-                return -groupId; // Для групп отрицательный ID
-            }
-
-            // Если это численный ID паблика (public123456)
-            if (/^public\d+$/.test(screenName)) {
-                const groupId = parseInt(screenName.replace("public", ""));
-                return -groupId;
-            }
-
-            // Если это screen_name, резолвим через API
-            const resolved = await this.vk.call("utils.resolveScreenName", {
-                screen_name: screenName
+            await this.page.goto(`https://vk.com/${screenName}`, { 
+                waitUntil: 'domcontentloaded',
+                timeout: 30000 
             });
 
-            if (!resolved || !resolved.object_id) {
-                throw new Error(`Не удалось найти объект с screen_name: ${screenName}`);
+            await this.delay(2500); // Уменьшили с 4000
+
+            // ШАГ 1: Ищем и кликаем "Write message"
+            const correctSelector = 'a[data-testid="group_action_send_message"]';
+            
+            try {
+                await this.page.waitForSelector(correctSelector, { 
+                    timeout: 8000, // Уменьшили с 10000
+                    visible: true 
+                });
+            } catch (e) {
+                const btnExists = await this.page.$(correctSelector);
+                if (!btnExists) {
+                    return {
+                        firmName: screenName,
+                        vkLink: vkLink,
+                        status: "error",
+                        error: "Кнопка 'Write message' не найдена"
+                    };
+                }
             }
 
-            // type: "group" или "user"
-            if (resolved.type === "group") {
-                return -resolved.object_id; // Для групп отрицательный
-            } else if (resolved.type === "user") {
-                return resolved.object_id;
+            const clicked = await this.page.evaluate((selector) => {
+                const button = document.querySelector(selector) as HTMLAnchorElement;
+                if (button) {
+                    button.click();
+                    return true;
+                }
+                return false;
+            }, correctSelector);
+
+            if (!clicked) {
+                const href = await this.page.evaluate((selector) => {
+                    const button = document.querySelector(selector) as HTMLAnchorElement;
+                    return button ? button.href : null;
+                }, correctSelector);
+                
+                if (href) {
+                    await this.page.goto(href, { waitUntil: 'domcontentloaded' });
+                } else {
+                    return {
+                        firmName: screenName,
+                        vkLink: vkLink,
+                        status: "error",
+                        error: "Не удалось открыть мессенджер"
+                    };
+                }
             }
 
-            throw new Error(`Неизвестный тип объекта: ${resolved.type}`);
-        } catch (error: any) {
-            throw new Error(`Ошибка получения peer_id для ${screenName}: ${error.message}`);
-        }
-    }
+            // ШАГ 2: Ждем мессенджер (уменьшили задержку)
+            await this.delay(2000); // Было 5000
 
-    /**
-     * Отправить сообщение одному партнёру
-     */
-    async sendMessage(
-        vkLink: string,
-        message: string,
-        attachments?: string[]
-    ): Promise<VKMessageResult> {
-        this.ensureInitialized();
+            // ШАГ 3: Ищем поле ввода
+            let inputField = null;
+            const inputSelectors = [
+                'div[contenteditable="true"][role="textbox"]',
+                'div.im-page--textarea-wrap div[contenteditable="true"]',
+                'div[contenteditable="true"]'
+            ];
 
-        const screenName = this.extractScreenName(vkLink);
-
-        try {
-            const peerId = await this.getPeerId(screenName);
-
-            const params: any = {
-                peer_id: peerId,
-                message: message,
-                random_id: easyvk.randomId()
-            };
-
-            // Добавляем вложения если есть (например, фото)
-            if (attachments && attachments.length > 0) {
-                params.attachment = attachments.join(",");
+            for (const selector of inputSelectors) {
+                try {
+                    await this.page.waitForSelector(selector, { timeout: 3000, visible: true }); // Уменьшили с 5000
+                    const fields = await this.page.$$(selector);
+                    if (fields.length > 0) {
+                        inputField = fields[fields.length - 1];
+                        break;
+                    }
+                } catch (e) {
+                    continue;
+                }
             }
 
-            const response = await this.vk.call("messages.send", params);
+            if (!inputField) {
+                return {
+                    firmName: screenName,
+                    vkLink: vkLink,
+                    status: "error",
+                    error: "Поле ввода не найдено"
+                };
+            }
+
+            // ШАГ 4: Вводим текст
+            await inputField.click();
+            await this.delay(300); // Уменьшили с 500
+            
+            await this.page.evaluate((el: any, text: string) => {
+                el.textContent = text;
+                el.innerHTML = text;
+                const event = new Event('input', { bubbles: true });
+                el.dispatchEvent(event);
+            }, inputField, message);
+            
+            await this.delay(800); // Уменьшили с 1500
+
+            // ШАГ 5: Отправляем
+            const sendButtonSelectors = [
+                'button[data-testid="mail_box_send_button"]',
+                'button#mail_box_send',
+                'button.mail_box_send_btn'
+            ];
+
+            let sentSuccessfully = false;
+
+            for (const selector of sendButtonSelectors) {
+                try {
+                    const sendBtn = await this.page.$(selector);
+                    
+                    if (sendBtn) {
+                        await this.page.evaluate((sel) => {
+                            const btn = document.querySelector(sel) as HTMLButtonElement;
+                            if (btn) btn.click();
+                        }, selector);
+                        sentSuccessfully = true;
+                        break;
+                    }
+                } catch (e) {
+                    continue;
+                }
+            }
+
+            if (!sentSuccessfully) {
+                await inputField.click();
+                await this.delay(200);
+                await this.page.keyboard.press('Enter');
+            }
+
+            await this.delay(1500); // Уменьшили с 2000
 
             return {
                 firmName: screenName,
                 vkLink: vkLink,
-                status: "success",
-                messageId: response
+                status: "success"
             };
+
         } catch (error: any) {
             return {
                 firmName: screenName,
@@ -145,97 +324,49 @@ export class VKClient {
         }
     }
 
-    /**
-     * Массовая отправка сообщений партнёрам с задержками
-     */
     async sendBulkMessages(
         firms: DgisFirmData[],
         messageTemplate: (firm: DgisFirmData) => string
     ): Promise<VKMessageResult[]> {
-        this.ensureInitialized();
-
         const results: VKMessageResult[] = [];
         const firmsWithVk = firms.filter((f) => f.vkLink);
 
-        console.log(`📨 Начинаем отправку ${firmsWithVk.length} сообщений...`);
+        console.log(`📨 Отправка сообщений: ${firmsWithVk.length} шт.\n`);
 
         for (let i = 0; i < firmsWithVk.length; i++) {
             const firm = firmsWithVk[i];
             const message = messageTemplate(firm);
 
-            console.log(`[${i + 1}/${firmsWithVk.length}] Отправка: ${firm.name}`);
+            console.log(`[${i + 1}/${firmsWithVk.length}] ${firm.name}`);
 
-            const result = await this.sendMessageWithRetry(
-                firm.vkLink!,
-                message
-            );
-
+            const result = await this.sendMessage(firm.vkLink!, message);
             results.push(result);
 
-            // Задержка между сообщениями (антиспам)
+            if (result.status === "success") {
+                console.log(`✅ Отправлено\n`);
+            } else {
+                console.log(`❌ Ошибка: ${result.error}\n`);
+            }
+
             if (i < firmsWithVk.length - 1) {
-                await this.delay(this.DELAY_BETWEEN_MESSAGES);
+                const delayTime = 5000 + Math.random() * 3000;
+                console.log(`⏳ Ждём ${Math.round(delayTime/1000)} сек...\n`);
+                await this.delay(delayTime);
             }
         }
 
-        const successCount = results.filter((r) => r.status === "success").length;
-        console.log(`✓ Отправлено успешно: ${successCount}/${firmsWithVk.length}`);
+        const successCount = results.filter(r => r.status === "success").length;
+        const errorCount = results.filter(r => r.status === "error").length;
+        
+        console.log(`\n✅ Завершено! Успешно: ${successCount} | Ошибок: ${errorCount}`);
 
         return results;
     }
 
-    /**
-     * Отправка с повторными попытками при ошибках
-     */
-    private async sendMessageWithRetry(
-        vkLink: string,
-        message: string,
-        attempt = 1
-    ): Promise<VKMessageResult> {
-        try {
-            return await this.sendMessage(vkLink, message);
-        } catch (error: any) {
-            // Flood control (слишком много запросов)
-            if (error.error_code === 9 && attempt < this.MAX_RETRIES) {
-                console.warn(`⚠️ Flood control, ждём 60 секунд...`);
-                await this.delay(60000);
-                return this.sendMessageWithRetry(vkLink, message, attempt + 1);
-            }
-
-            // Капча
-            if (error.error_code === 14) {
-                console.error(`❌ Требуется капча: ${error.captcha_img}`);
-                return {
-                    firmName: vkLink,
-                    vkLink: vkLink,
-                    status: "error",
-                    error: "Требуется капча"
-                };
-            }
-
-            // Другие ошибки
-            return {
-                firmName: vkLink,
-                vkLink: vkLink,
-                status: "error",
-                error: error.message
-            };
+    async close() {
+        if (this.browser) {
+            await this.browser.close();
+            console.log("🔒 Браузер закрыт");
         }
-    }
-
-    /**
-     * Задержка (для антиспама)
-     */
-    private delay(ms: number): Promise<void> {
-        return new Promise((resolve) => setTimeout(resolve, ms));
-    }
-
-    /**
-     * Получить информацию о текущем пользователе
-     */
-    async getCurrentUser() {
-        this.ensureInitialized();
-        const user = await this.vk.call("users.get", {});
-        return user[0];
     }
 }

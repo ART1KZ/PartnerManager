@@ -20,11 +20,15 @@
     "start": "node -r dotenv/config dist/app.js"
   },
   "dependencies": {
+    "@vk-io/authorization": "^1.4.1",
     "axios": "^1.13.2",
     "dotenv": "^17.2.3",
     "google-auth-library": "^10.5.0",
     "google-spreadsheet": "^5.0.2",
-    "nodemailer": "^7.0.10"
+    "nodemailer": "^7.0.10",
+    "puppeteer": "^24.32.1",
+    "rucaptcha-client": "^2.0.8",
+    "vk-io": "^4.10.1"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
