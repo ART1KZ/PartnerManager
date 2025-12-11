@@ -15,5 +15,9 @@ export const env = {
     vk: {
         username: requireEnv("VK_USERNAME"),
         password: requireEnv("VK_PASSWORD"),
+    },
+    mail: {
+        user: requireEnv("MAIL_USER"),
+        password: requireEnv("MAIL_PASSWORD"),
     }
 };
