@@ -42,3 +42,20 @@ export interface UniquePartnerDatasInSheet {
     dgisIds: string[];
     emails: string[];
 }
+
+export interface SheetConfig {
+  name: string;
+  headers: Record<string, string>;
+}
+
+export interface RegionCity {
+  name: string;
+  dgisName: string;
+}
+
+export interface Region {
+  name: string;
+  shortName: string;
+  sheet: SheetConfig;
+  cities: RegionCity[];
+}

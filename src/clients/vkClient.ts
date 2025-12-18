@@ -1,4 +1,4 @@
-import puppeteer from "puppeteer";
+import puppeteer, { Browser, Page } from "puppeteer";
 import type { DgisFirmData } from "../types.js";
 
 export interface VKMessageResult {
@@ -9,8 +9,8 @@ export interface VKMessageResult {
 }
 
 export class VkClient {
-    private browser: any;
-    private page: any;
+    private browser: Browser | null = null;
+    private page: Page | null = null;
     private initialized = false;
 
     private delay(ms: number): Promise<void> {
@@ -107,7 +107,7 @@ export class VkClient {
             await this.delay(1000);
 
             const continueButtons = await this.page.$$('button[type="submit"]');
-            if (continueButtons.length > 0) {
+            if (continueButtons.length > 0 ) {
                 await continueButtons[0].click();
             }
 
@@ -259,7 +259,7 @@ export class VkClient {
 
             try {
                 await this.page.waitForSelector(correctSelector, {
-                    timeout: 8000, // Уменьшили с 10000
+                    timeout: 8000,
                     visible: true,
                 });
             } catch (e) {

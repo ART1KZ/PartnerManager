@@ -22,6 +22,15 @@ export const regions = {
             { name: "Пермь", dgisName: "perm" },
             { name: "Березники", dgisName: "berezniki" },
         ],
+        message: {
+            vk: {
+                text: "",
+            },
+            mail: {
+                subject: "Сотрудничество",
+                HTML: "",
+            },
+        },
     },
     UR: {
         name: "Удмуртская Республика",

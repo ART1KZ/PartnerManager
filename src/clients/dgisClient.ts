@@ -1,6 +1,7 @@
 import axios from "axios";
 import { URL } from "url";
-import type { DgisFirmData } from "../types.js"
+import type { DgisFirmData } from "../types.js";
+import path from "path";
 
 export class DgisClient {
     // Базовый домен 2ГИС (ПК-версия)
@@ -181,18 +182,14 @@ export class DgisClient {
         const primaryRubric = rubricsList.find(
             (r: any) => r.kind === "primary"
         );
-        const category = primaryRubric ? primaryRubric.name.toLowerCase() : null;
-        
-        const vkLink = flatContacts
-            .filter((c: any) =>
-                [
-                    "vkontakte",
-                    "vk",
-                ].includes(c.type)
-            )
-            .map((c: any) => (
-                c.url
-            ))[0] || null;
+        const category = primaryRubric
+            ? primaryRubric.name.toLowerCase()
+            : null;
+
+        const vkLink =
+            flatContacts
+                .filter((c: any) => ["vkontakte", "vk"].includes(c.type))
+                .map((c: any) => c.url)[0] || null;
 
         const rubrics = Array.isArray(entity.rubrics)
             ? entity.rubrics.map((r: any) => r.name)
@@ -238,7 +235,8 @@ export class DgisClient {
         city: string,
         category: string,
         pages = 1,
-        concurrency = 3
+        concurrency = 3,
+        skipIds?: Set<string>
     ) {
         const allFirmUrls = new Set<string>();
 
@@ -250,7 +248,10 @@ export class DgisClient {
                 page
             );
             const urls = this.extractFirmUrlsFromSearchHtml(html);
-            urls.forEach((u) => allFirmUrls.add(u));
+            urls.forEach((u) => {
+                if (skipIds?.has(u)) return;
+                allFirmUrls.add(u);
+            });
         }
 
         const queue = [...allFirmUrls];
@@ -265,7 +266,8 @@ export class DgisClient {
                 try {
                     const firmObj = await this.fetchFirmData(firmUrl);
 
-                    const hasVkOrEmail = firmObj.vkLink || firmObj.emails.length > 0;
+                    const hasVkOrEmail =
+                        firmObj.vkLink || firmObj.emails.length > 0;
 
                     if (!hasVkOrEmail) continue;
 
