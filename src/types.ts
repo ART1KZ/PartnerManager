@@ -36,6 +36,13 @@ export interface DgisFirmData {
     citySlug?: string;
 }
 
+export interface WrittenFirmData extends DgisFirmData {
+    writtenData: {
+      isSendMailMessage: boolean;
+      isSendVkMessage: boolean;
+    }
+}
+
 export interface UniquePartnerDatasInSheet {
     names: string[];
     vks: string[];

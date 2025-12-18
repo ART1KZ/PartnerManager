@@ -119,18 +119,7 @@ export class GoogleSheetsClient {
             const mapping = this.getPartnersSheetByFirmData(sheetFirms[0]);
             if (!mapping) continue;
 
-            const uniquePartnerDatasInSheet =
-                await this.getUniquePartnerDatasInSheet(
-                    mapping.sheetConfig.name,
-                    mapping.sheetConfig.headers
-                );
-
-            const newFirms = sheetFirms.filter(
-                (firmData) =>
-                    !this.isExistingFirm(uniquePartnerDatasInSheet, firmData)
-            );
-
-            const rows = newFirms.map((firm) =>
+            const rows = sheetFirms.map((firm) =>
                 this.convertFirmToRow(firm, mapping)
             );
 
@@ -217,20 +206,6 @@ export class GoogleSheetsClient {
             );
         }
 
-        const uniquePartnerDatasInSheet =
-            await this.getUniquePartnerDatasInSheet(
-                mapping.sheetConfig.name,
-                mapping.sheetConfig.headers
-            );
-        const isFirmOnSheet = this.isExistingFirm(
-            uniquePartnerDatasInSheet,
-            dgisFirmData
-        );
-
-        if (isFirmOnSheet) {
-            console.log("Заведение уже есть в таблице");
-            return;
-        }
         const row = this.convertFirmToRow(dgisFirmData, mapping);
         await this.appendRow(row, mapping.sheetConfig.name);
     }
@@ -249,29 +224,6 @@ export class GoogleSheetsClient {
             .replace(/\s+/g, " ") // множественные пробелы в один
             .replace(/[«»"']/g, "") // убираем кавычки разных типов
             .replace(/[‐–—-]/g, "-"); // нормализуем дефисы
-    }
-
-    isExistingFirm(
-        partnerUniqueDatas: UniquePartnerDatasInSheet,
-        dgisFirmData: DgisFirmData
-    ) {
-        // Приведение имени заведение к общему формату
-        const normalizedFirmName = this.normalizeFirmName(dgisFirmData.name);
-
-        return (
-            // Существует ли заведение с указанной ссылкой на ВК в листе (таблице)
-            (dgisFirmData.vkLink &&
-                partnerUniqueDatas.vks.includes(dgisFirmData.vkLink)) ||
-            // Существует ли заведение с указанным 2гис id в листе (таблице)
-            partnerUniqueDatas.dgisIds.includes(dgisFirmData.id) ||
-            // Существует ли заведение с указанными почтами в листе (таблице)
-            dgisFirmData.emails.some((email) =>
-                partnerUniqueDatas.emails.includes(email)
-            ) ||
-            partnerUniqueDatas.names.some((firmName) =>
-                this.normalizeFirmName(firmName).includes(normalizedFirmName)
-            )
-        );
     }
 
     /**
