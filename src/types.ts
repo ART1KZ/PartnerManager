@@ -38,31 +38,31 @@ export interface DgisFirmData {
 
 export interface WrittenFirmData extends DgisFirmData {
     writtenData: {
-      isSendMailMessage: boolean;
-      isSendVkMessage: boolean;
-    }
+        isSendMailMessage: boolean;
+        isSendVkMessage: boolean;
+    };
 }
 
-export interface UniquePartnerDatasInSheet {
+export interface ExistingPartnerDatasInSheet {
+    dgisIds: string[];
     names: string[];
     vks: string[];
-    dgisIds: string[];
     emails: string[];
 }
 
 export interface SheetConfig {
-  name: string;
-  headers: Record<string, string>;
+    name: string;
+    headers: Record<string, string>;
 }
 
 export interface RegionCity {
-  name: string;
-  dgisName: string;
+    name: string;
+    dgisName: string;
 }
 
 export interface Region {
-  name: string;
-  shortName: string;
-  sheet: SheetConfig;
-  cities: RegionCity[];
+    name: string;
+    shortName: string;
+    sheet: SheetConfig;
+    cities: RegionCity[];
 }

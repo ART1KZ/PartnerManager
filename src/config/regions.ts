@@ -108,4 +108,9 @@ export const regions = {
             },
         },
     },
-};
+} as const;
+
+export type RegionsType = typeof regions;
+export type RegionKey = keyof typeof regions; 
+export type SheetConfig = RegionsType[RegionKey]['sheet'];
+export type HeadersType = SheetConfig['headers'];

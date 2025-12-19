@@ -4,36 +4,25 @@ import { VkClient } from "./clients/vkClient.js";
 import { MailClient } from "./clients/mailClient.js";
 import { env } from "./config/env.js";
 import { regions } from "./config/regions.js";
-
+import { PartnerOutreachService } from "./services/partnerOutreachService.js";
 // const cities = ["perm", "glazov", "sarapul", "berezniki"];
 
 
 (async () => {
     const categories = ["Кафе", "Ресторан", "Автосервис", "Салон красоты"];
+
     console.log("started")
-    const dgis = new DgisClient();
-    const googleSheet = new GoogleSheetsClient();
-    const mail = new MailClient(env.mail.user, env.mail.password);
-    // const vk = new VkClient();
-    // await vk.init(env.vk.username, env.vk.password);
 
-    const result = await mail.send("artemkiselev18072k6@gmail.com", "Сотрудничество", "Привет мяу))))");
-    // const city = regions.PK.cities[0]?.dgisName
-    // const category = categories[0]/
+    const dgisClient = new DgisClient();
+    const googleSheetsClient = new GoogleSheetsClient(env.spreadsheets.serviceKey, env.spreadsheets.serviceEmail, env.spreadsheets.spreadsheetId, regions);
+    const mailClient = new MailClient(env.mail.login, env.mail.password);
+    const vkClient = new VkClient(env.vk.login, env.vk.password);
 
-    // const firms = await dgis.fetchFirmsFromSearch(city!, category!, 1, 5);
-    // console.log("пропарсил");
-    
-    console.log(result)
-    // const vk = new VkClient();
-    
-    // const result = await vk.sendBulkMessages(firms, (f) => `Здравствуйте, ${f.name}`);
-    // console.log(result)
-    
-    // await googleSheet.appendPartnerRows(firms);
-    // const test = await googleSheet.getAllHeaderRows("Пермский край новые партнеры", "Партнер название")
-    // console.log(test)
+    const partnerOutreachService = new PartnerOutreachService(
+        dgisClient, googleSheetsClient, mailClient, vkClient
+    )
 
+    await partnerOutreachService.findPartners("perm", "Ресторан");
 
     /* 
     Основная логика:

@@ -12,12 +12,18 @@ export class VkClient {
     private browser: Browser | null = null;
     private page: Page | null = null;
     private initialized = false;
+    private readonly login: string;
+    private readonly password: string;
 
+    constructor(login: string, password: string) {
+        this.password = password;
+        this.login = login;
+    }
     private delay(ms: number): Promise<void> {
         return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
-    async init(username: string, password: string) {
+    async init() {
         if (this.initialized) return;
 
         console.log("🌐 Запускаем браузер...");
@@ -100,7 +106,7 @@ export class VkClient {
             });
             await this.page.click('input[name="login"]');
             await this.delay(500);
-            await this.page.type('input[name="login"]', username, {
+            await this.page.type('input[name="login"]', this.login, {
                 delay: 100,
             });
 
@@ -169,7 +175,7 @@ export class VkClient {
             });
             await this.page.click('input[name="password"]');
             await this.delay(500);
-            await this.page.type('input[name="password"]', password, {
+            await this.page.type('input[name="password"]', this.password, {
                 delay: 100,
             });
 
@@ -251,7 +257,7 @@ export class VkClient {
                 timeout: 30000,
             });
 
-            await this.delay(2500); // Уменьшили с 4000
+            await this.delay(2500);
 
             // ШАГ 1: Ищем и кликаем "Write message"
             const correctSelector =
