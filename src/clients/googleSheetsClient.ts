@@ -1,39 +1,28 @@
 import { GoogleSpreadsheet } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
-import {
-    HeadersType,
-    RegionKey,
-    RegionsType,
-    SheetConfig,
-} from "../config/regions.js";
+import type { HeadersType } from "../config/regions.js";
 import type {
-    DgisFirmData,
     ExistingPartnerDatasInSheet,
     WrittenFirmData,
 } from "../types.js";
+import { RegionConfigService } from "../services/regionConfigService.js";
 
 type Cell = string | number | boolean | null;
 
 export class GoogleSheetsClient {
-    private doc: GoogleSpreadsheet;
+    private readonly doc: GoogleSpreadsheet;
     private initialized = false;
-    private readonly regions: RegionsType;
 
-    constructor(
-        email: string,
-        serviceKey: string,
-        spreadsheetId: string,
-        regions: RegionsType
-    ) {
+    constructor(email: string, serviceKey: string, spreadsheetId: string) {
         const auth = new JWT({
             email,
-            key: serviceKey.replace(/\\n/g, "\n"),
+            key: serviceKey.includes("\\n")
+                ? serviceKey.replace(/\\n/g, "\n")
+                : serviceKey,
             scopes: ["https://www.googleapis.com/auth/spreadsheets"],
         });
 
         this.doc = new GoogleSpreadsheet(spreadsheetId, auth);
-
-        this.regions = regions;
     }
 
     private async init() {
@@ -76,53 +65,6 @@ export class GoogleSheetsClient {
     // --------- Хелперы для поиска листа / города ---------
 
     /**
-     * Возвращает конфигурацию листа и имя города, если данные о фирме из 2ГИС
-     * соответствуют какому-либо из городов в config/regions.js.
-     *
-     * @param dgisFirmData - данные о фирме из 2ГИС
-     * @returns Объект с конфигом и именем города или null, если совпадений нет
-     */
-    getPartnersSheetByFirmData(
-        firmData: DgisFirmData
-    ): { sheetConfig: SheetConfig; cityName: string } | null {
-        let sheetConfig: any | null = null;
-        let cityName: string | null = null;
-
-        for (const key in this.regions) {
-            if (sheetConfig) break;
-            const regionKey = key as RegionKey;
-            const region = this.regions[regionKey];
-            for (const cityData of region.cities) {
-                if (cityData.dgisName !== firmData.citySlug) continue;
-
-                sheetConfig = region.sheet;
-                cityName = cityData.name;
-                break;
-            }
-        }
-
-        if (!sheetConfig || !cityName) return null;
-
-        return { sheetConfig, cityName };
-    }
-
-    /**
-     * Возвращает конфигурацию листа партнёров по имени города.
-     *      Если город не найден в config/regions.js, то возвращает null.
-     *
-     * @param {string} cityName - имя города
-     * @returns - конфигурация листа партнёров или null, если город не найден
-     */
-    getPartnersSheetByCityName(cityName: string): SheetConfig | null {
-        for (const region of Object.values(this.regions)) {
-            for (const cityData of region.cities) {
-                if (cityData.name !== cityName) continue;
-                return region.sheet;
-            }
-        }
-        return null;
-    }
-    /**
      * Добавление партнёров в Google Sheets
      *          по данным о фирмах из 2ГИС
      * @param {DgisFirmData[]} firms - данные о фирмах из 2ГИС
@@ -134,7 +76,7 @@ export class GoogleSheetsClient {
         const firmsBySheet = new Map<string, WrittenFirmData[]>();
 
         for (const firm of firms) {
-            const mapping = this.getPartnersSheetByFirmData(firm);
+            const mapping = RegionConfigService.getPartnersSheetByFirmData(firm);
             if (!mapping) {
                 console.warn(
                     `Пропуск: лист не найден для citySlug="${firm.citySlug}"`
@@ -154,7 +96,7 @@ export class GoogleSheetsClient {
         }
 
         for (const [sheetName, sheetFirms] of firmsBySheet) {
-            const mapping = this.getPartnersSheetByFirmData(sheetFirms[0]);
+            const mapping = RegionConfigService.getPartnersSheetByFirmData(sheetFirms[0]);
             if (!mapping) continue;
 
             const rows = sheetFirms.map((firm) =>
@@ -206,7 +148,7 @@ export class GoogleSheetsClient {
         ];
 
         if (hasDateColumn) infoParts.push(dateStr);
-        
+
         const infoStr = infoParts.join(" ");
 
         const row: Record<string, Cell> = {};
@@ -238,7 +180,7 @@ export class GoogleSheetsClient {
      * @throws {Error} - если не удалось найти лист для citySlug="${dgisFirmData.citySlug}"
      */
     async appendPartnerRow(dgisFirmData: WrittenFirmData): Promise<void> {
-        const mapping = this.getPartnersSheetByFirmData(dgisFirmData);
+        const mapping = RegionConfigService.getPartnersSheetByFirmData(dgisFirmData);
 
         if (!mapping) {
             throw new Error(
@@ -269,13 +211,12 @@ export class GoogleSheetsClient {
      *      когда все уникальные данные партнёров собраны
      */
 
-    async getExistingPartnerDatasInSheet(
+    async getExistingPartners(
         sheetName: string,
         headers: HeadersType
     ): Promise<ExistingPartnerDatasInSheet> {
         const rows = await this.getAllRows(sheetName);
 
-        const ids = new Set<string>();
         const names = new Set<string>();
         const vks = new Set<string>();
         const dgisIds = new Set<string>();

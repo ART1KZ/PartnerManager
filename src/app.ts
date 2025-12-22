@@ -9,12 +9,10 @@ import { PartnerOutreachService } from "./services/partnerOutreachService.js";
 
 
 (async () => {
-    const categories = ["Кафе", "Ресторан", "Автосервис", "Салон красоты"];
-
     console.log("started")
 
     const dgisClient = new DgisClient();
-    const googleSheetsClient = new GoogleSheetsClient(env.spreadsheets.serviceKey, env.spreadsheets.serviceEmail, env.spreadsheets.spreadsheetId, regions);
+    const googleSheetsClient = new GoogleSheetsClient(env.spreadsheets.serviceEmail, env.spreadsheets.serviceKey, env.spreadsheets.spreadsheetId, regions);
     const mailClient = new MailClient(env.mail.login, env.mail.password);
     const vkClient = new VkClient(env.vk.login, env.vk.password);
 
@@ -22,7 +20,7 @@ import { PartnerOutreachService } from "./services/partnerOutreachService.js";
         dgisClient, googleSheetsClient, mailClient, vkClient
     )
 
-    await partnerOutreachService.findPartners("perm", "Ресторан");
+    await partnerOutreachService.findPartners("Пермь", "Ресторан");
 
     /* 
     Основная логика:

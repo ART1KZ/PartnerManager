@@ -258,8 +258,9 @@ export class DgisClient {
             );
             const urls = this.extractFirmUrlsFromSearchHtml(html);
             urls.forEach((u) => {
-
-                if (isDuplicateCandidate && isDuplicateCandidate({ url: u })) return;
+                console.log(u);
+                if (isDuplicateCandidate && isDuplicateCandidate({ url: u }))
+                    return;
                 allFirmUrls.add(u);
             });
         }
@@ -276,7 +277,8 @@ export class DgisClient {
                 try {
                     const firmObj = await this.fetchFirmData(firmUrl);
 
-                    if(isDuplicateCandidate && isDuplicateCandidate(firmObj)) continue;
+                    if (isDuplicateCandidate && isDuplicateCandidate(firmObj))
+                        continue;
                     const hasVkOrEmail =
                         firmObj.vkLink || firmObj.emails.length > 0;
 

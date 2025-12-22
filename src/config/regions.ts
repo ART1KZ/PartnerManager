@@ -37,8 +37,8 @@ export const regions = {
             },
         },
         cities: [
-            { name: "Пермь", dgisName: "perm" },
-            { name: "Березники", dgisName: "berezniki" },
+            { name: "Пермь", dgisSlug: "perm" },
+            { name: "Березники", dgisSlug: "berezniki" },
         ],
         message: {
             vk: {
@@ -83,8 +83,8 @@ export const regions = {
             },
         },
         cities: [
-            { name: "Глазов", dgisName: "glazov" },
-            { name: "Сарапул", dgisName: "sarapul" },
+            { name: "Глазов", dgisSlug: "glazov" },
+            { name: "Сарапул", dgisSlug: "sarapul" },
         ],
         message: {
             vk: {

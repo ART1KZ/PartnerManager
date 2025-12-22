@@ -1,14 +1,16 @@
-import type { DgisFirmData, ExistingPartnerDatasInSheet } from "../types.js";
+import type { DgisFirmData, ExistingPartnerDatasInSheet, WrittenFirmData } from "../types.js";
 import { DgisClient } from "../clients/dgisClient.js";
 import { GoogleSheetsClient } from "../clients/googleSheetsClient.js";
 import { VkClient } from "../clients/vkClient.js";
 import { MailClient } from "../clients/mailClient.js";
+import { RegionConfigService } from "./regionConfigService.js";
 
 export class PartnerOutreachService {
     private readonly dgisClient: DgisClient;
     private readonly googleSheetsClient: GoogleSheetsClient;
     private readonly mailClient: MailClient;
     private readonly vkClient: VkClient;
+
     constructor(
         dgisClient: DgisClient,
         googleSheetsClient: GoogleSheetsClient,
@@ -21,29 +23,39 @@ export class PartnerOutreachService {
         this.vkClient = vkClient;
     }
 
-    async findPartners(city: string, category: string) {
-        const sheet = this.googleSheetsClient.getPartnersSheetByCityName(city);
+    async findPartners(cityName: string, categoryName: string) {
+        const sheet = RegionConfigService.getPartnersSheetByCityName(cityName);
 
         if (!sheet)
-            throw new Error(`Лист для региона города "${city}" не найден`);
+            throw new Error(`Лист региона для города "${cityName}" не найден`);
 
-        const existingFirms =
-            await this.googleSheetsClient.getExistingPartnerDatasInSheet(
-                sheet.name,
-                sheet.headers
-            );
-        const existingFirmIds = new Set(existingFirms.dgisIds);
-        
+        const existingFirms = await this.googleSheetsClient.getExistingPartners(
+            sheet.name,
+            sheet.headers
+        );
+
+        const dgisCitySlug = RegionConfigService.getCitySlug(cityName);
+        if (!dgisCitySlug) {
+            throw new Error(`Slug города "${cityName}" не найден`);
+        }
+
         const isDupliсateCandidate = (candidate: Partial<DgisFirmData>) => {
             return this.isExistingFirm(existingFirms, candidate);
-        }
+        };
+
         const parsedFirms = await this.dgisClient.fetchFirmsFromSearch(
-            city,
-            category,
+            dgisCitySlug,
+            categoryName,
             2,
             3,
             isDupliсateCandidate
         );
+
+        const processedFirms: WrittenFirmData[] = [];
+
+        // TODO: доделать логику обработки отправки сообщений с последующей записью в таблицу
+            
+
     }
 
     /**

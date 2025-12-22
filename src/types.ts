@@ -57,7 +57,7 @@ export interface SheetConfig {
 
 export interface RegionCity {
     name: string;
-    dgisName: string;
+    dgisSlug: string;
 }
 
 export interface Region {
