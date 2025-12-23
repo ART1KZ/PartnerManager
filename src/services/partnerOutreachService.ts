@@ -27,7 +27,7 @@ export class PartnerOutreachService {
         this.vkClient = vkClient;
     }
 
-    async findPartners(cityName: string, categoryName: string) {
+    async findPartners(cityName: string, categoryName: string, candidatesCountGoal: number) {
         const sheet = RegionConfigService.getPartnersSheetByCityName(cityName);
 
         if (!sheet)
@@ -47,12 +47,10 @@ export class PartnerOutreachService {
             return this.isExistingFirm(existingFirms, candidate);
         };
 
-        const pagesCount = 1;
         const parsedFirms = await this.dgisClient.fetchFirmsFromSearch(
             dgisCitySlug,
             categoryName,
-            pagesCount,
-            3,
+            candidatesCountGoal,
             isDupliсateCandidate
         );
 

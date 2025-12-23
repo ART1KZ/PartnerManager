@@ -207,7 +207,7 @@ export class DgisClient {
             website,
             vkLink,
             rubrics,
-            citySlug
+            citySlug,
         };
     }
 
@@ -233,70 +233,88 @@ export class DgisClient {
 
     /**
      * Поиск фирм по городу/категории
-     * @param {string} city - город
-     * @param {string} category - категория
-     * @param {number} pages - количество страниц поиска
-     * @param {number} concurrency - количество одновременных запросов
-     * @param {Set<string>} skipIds - множество ID фирм, которые нужно пропустить
+     * @param city - город
+     * @param category - категория
+     * @param candidatesCountGoal - количество страниц заведений, которым нужно написать
+     * @param isDuplicateCandidate - функция, проверяющая, является ли кандидат дубликатом из таблицы
      * @returns массив объектов фирм
      */
     async fetchFirmsFromSearch(
         city: string,
         category: string,
-        pages = 1,
-        concurrency = 3,
+        candidatesCountGoal: number,
         isDuplicateCandidate?: IsDuplicateCandidate
     ): Promise<DgisFirmData[]> {
-        const allFirmUrls = new Set<string>();
+        if (candidatesCountGoal <= 0)
+            throw new Error(
+                "Цель по количеству заведений не должна быть меньше либо равна нулю"
+            );
+
+        const results: DgisFirmData[] = [];
+        const newFirmUrls = new Set<string>();
+        // Хранение ссылки-отпечатки первой страницы (первое заведение на первой странице) для случая, если заведения закончатся
+        let firstPageFirmUrl: string | null = null;
 
         // Собираем ссылки заведений с N страниц поиска
-        for (let page = 1; page <= pages; page++) {
+        for (let page = 1; results.length < candidatesCountGoal; page++) {
+            const queue: string[] = [];
             const html = await this.extractEstablishmentsHTML(
                 city,
                 category,
                 page
             );
             const urls = this.extractFirmUrlsFromSearchHtml(html);
-            urls.forEach((u) => {
-                console.log(u);
+
+            if (!urls[0]) break;
+            if (page === 1) firstPageFirmUrl = urls[0];
+            if (urls[0] === firstPageFirmUrl && page != 1) break;
+
+            for (const u of urls) {
+                if (results.length >= candidatesCountGoal) break;
                 if (isDuplicateCandidate && isDuplicateCandidate({ url: u }))
-                    return;
-                allFirmUrls.add(u);
-            });
-        }
-
-        const queue = [...allFirmUrls];
-        const results: any[] = [];
-
-        // Простой пул воркеров для параллельных запросов карточек
-        const worker = async () => {
-            while (queue.length) {
-                const firmUrl = queue.shift();
-                if (!firmUrl) break;
-
-                try {
-                    const firmObj = await this.fetchFirmData(firmUrl);
-
-                    if (isDuplicateCandidate && isDuplicateCandidate(firmObj))
-                        continue;
-                    const hasVkOrEmail =
-                        firmObj.vkLink || firmObj.emails.length > 0;
-
-                    if (!hasVkOrEmail) continue;
-
-                    results.push(firmObj);
-                } catch (e: any) {
-                    console.error("FAIL:", firmUrl, e.message);
-                }
+                    continue;
+                if (newFirmUrls.has(u)) continue;
+                queue.push(u);
+                newFirmUrls.add(u);
             }
-        };
 
-        const workers: Promise<void>[] = [];
-        for (let i = 0; i < concurrency; i++) {
-            workers.push(worker());
+            // Простой пул воркеров для параллельных запросов карточек
+            const worker = async () => {
+                while (queue.length) {
+                    if (results.length >= candidatesCountGoal) break;
+
+                    const firmUrl = queue.shift();
+                    if (!firmUrl) break;
+
+                    try {
+                        const firmObj = await this.fetchFirmData(firmUrl);
+
+                        if (
+                            isDuplicateCandidate &&
+                            isDuplicateCandidate(firmObj)
+                        )
+                            continue;
+                        const hasVkOrEmail =
+                            firmObj.vkLink || firmObj.emails.length > 0;
+
+                        if (!hasVkOrEmail) continue;
+
+                        results.push(firmObj);
+                    } catch (e: any) {
+                        console.error("FAIL:", firmUrl, e.message);
+                    }
+                }
+            };
+
+            const workers: Promise<void>[] = [];
+            const concurrency = 3;
+
+            for (let i = 0; i < concurrency; i++) {
+                workers.push(worker());
+            }
+
+            await Promise.all(workers);
         }
-
-        await Promise.all(workers);
-        return results;
+        return results.length > candidatesCountGoal ? results.slice(0, candidatesCountGoal) : results;
     }
 }

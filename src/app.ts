@@ -12,7 +12,7 @@ import { PartnerOutreachService } from "./services/partnerOutreachService.js";
     console.log("started")
 
     const dgisClient = new DgisClient();
-    const googleSheetsClient = new GoogleSheetsClient(env.spreadsheets.serviceEmail, env.spreadsheets.serviceKey, env.spreadsheets.spreadsheetId, regions);
+    const googleSheetsClient = new GoogleSheetsClient(env.spreadsheets.serviceEmail, env.spreadsheets.serviceKey, env.spreadsheets.spreadsheetId);
     const mailClient = new MailClient(env.mail.login, env.mail.password);
     const vkClient = new VkClient(env.vk.login, env.vk.password);
 
@@ -20,7 +20,7 @@ import { PartnerOutreachService } from "./services/partnerOutreachService.js";
         dgisClient, googleSheetsClient, mailClient, vkClient
     )
 
-    const writtenData = await partnerOutreachService.findPartners("Пермь", "Ресторан");
+    const writtenData = await partnerOutreachService.findPartners("Сарапул", "Ресторан", 1);
 
     console.log(writtenData)
 
