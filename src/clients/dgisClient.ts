@@ -255,16 +255,30 @@ export class DgisClient {
         // Хранение ссылки-отпечатки первой страницы (первое заведение на первой странице) для случая, если заведения закончатся
         let firstPageFirmUrl: string | null = null;
 
-        // Собираем ссылки заведений с N страниц поиска
+        // Собираем ссылки заведений
         for (let page = 1; results.length < candidatesCountGoal; page++) {
             const queue: string[] = [];
-            const html = await this.extractEstablishmentsHTML(
-                city,
-                category,
-                page
-            );
-            const urls = this.extractFirmUrlsFromSearchHtml(html);
+            let html = "";
 
+            try {
+                html = await this.extractEstablishmentsHTML(
+                    city,
+                    category,
+                    page
+                );
+            } catch (e) {
+                if(e.response.status === 404) break;
+
+                console.warn(
+                    `🛑 Поиск остановлен на странице ${page}: ${
+                        e.message || "Ошибка загрузки"
+                    }. Возврат собранного списка`
+                );
+                break;
+            }
+
+            const urls = this.extractFirmUrlsFromSearchHtml(html);
+            
             if (!urls[0]) break;
             if (page === 1) firstPageFirmUrl = urls[0];
             if (urls[0] === firstPageFirmUrl && page != 1) break;
@@ -315,6 +329,8 @@ export class DgisClient {
 
             await Promise.all(workers);
         }
-        return results.length > candidatesCountGoal ? results.slice(0, candidatesCountGoal) : results;
+        return results.length > candidatesCountGoal
+            ? results.slice(0, candidatesCountGoal)
+            : results;
     }
 }

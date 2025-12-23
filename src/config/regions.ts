@@ -71,6 +71,7 @@ export const regions = {
                 // Название ключей таблицы (ячейки в первом столбце)
                 number: "П/П",
                 city: "Город",
+                direction: "Направление",
                 partnerName: "Партнер название",
                 phone: "тел. для связи",
                 messenger: "Мессенджер",

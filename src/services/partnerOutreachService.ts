@@ -54,6 +54,8 @@ export class PartnerOutreachService {
             isDupliсateCandidate
         );
 
+        console.log(parsedFirms);
+        
         if (parsedFirms.length === 0) {
             throw new Error(`Нет заведений в городе "${cityName}"`);
         }
@@ -124,9 +126,8 @@ export class PartnerOutreachService {
         }
 
         return {
-            totalParsedFirmCount: parsedFirms.length,
+            totalParsedFirmsCount: parsedFirms.length,
             writtenFirmsCount: writtenFirms.filter((f) => f.writtenData.isSendMailMessage || f.writtenData.isSendVkMessage).length,
-            unwritenFirmCount: writtenFirms.filter((f) => !f.writtenData.isSendMailMessage && !f.writtenData.isSendVkMessage).length,
             succesVkCount: writtenFirms.filter((f) => f.writtenData.isSendVkMessage).length,
             succesMailCount: writtenFirms.filter((f) => f.writtenData.isSendMailMessage).length
         };

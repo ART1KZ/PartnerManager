@@ -1,10 +1,7 @@
 import { GoogleSpreadsheet } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
 import type { HeadersType } from "../config/regions.js";
-import type {
-    ExistingPartnerDatasInSheet,
-    WrittenFirmData,
-} from "../types.js";
+import type { ExistingPartnerDatasInSheet, WrittenFirmData } from "../types.js";
 import { RegionConfigService } from "../services/regionConfigService.js";
 
 type Cell = string | number | boolean | null;
@@ -76,7 +73,8 @@ export class GoogleSheetsClient {
         const firmsBySheet = new Map<string, WrittenFirmData[]>();
 
         for (const firm of firms) {
-            const mapping = RegionConfigService.getPartnersSheetByFirmData(firm);
+            const mapping =
+                RegionConfigService.getPartnersSheetByFirmData(firm);
             if (!mapping) {
                 console.warn(
                     `Пропуск: лист не найден для citySlug="${firm.citySlug}"`
@@ -96,7 +94,9 @@ export class GoogleSheetsClient {
         }
 
         for (const [sheetName, sheetFirms] of firmsBySheet) {
-            const mapping = RegionConfigService.getPartnersSheetByFirmData(sheetFirms[0]);
+            const mapping = RegionConfigService.getPartnersSheetByFirmData(
+                sheetFirms[0]
+            );
             if (!mapping) continue;
 
             const rows = sheetFirms.map((firm) =>
@@ -136,6 +136,11 @@ export class GoogleSheetsClient {
         const hasDateColumn = Boolean(headers.date);
         const dateStr = new Date().toLocaleDateString("ru-RU");
 
+        const hasDirectionColumn = Boolean(headers.direction);
+        const directionStr = firmData.category
+            ? firmData.category[0]?.toUpperCase() + firmData.category.slice(1)
+            : "";
+
         const actions = [];
 
         if (firmData.writtenData.isSendVkMessage) actions.push("в ВК");
@@ -155,9 +160,9 @@ export class GoogleSheetsClient {
 
         // Маппинг на реальные заголовки таблицы
         row[headers.city] = cityName;
-        row[headers.partnerName] = firmData.category
-            ? `${firmData.name}, ${firmData.category}`
-            : firmData.name || "";
+        row[headers.partnerName] = hasDirectionColumn
+            ? firmData.name
+            : `${firmData.name}, ${directionStr.toLowerCase()}`;
         row[headers.phone] = phonesStr;
         row[headers.messenger] = messenger;
         row[headers.email] = emailsStr;
@@ -167,6 +172,7 @@ export class GoogleSheetsClient {
         row[headers.dgisId] = firmData.id ? firmData.id : "";
 
         if (hasDateColumn) row[headers.date] = dateStr;
+        if (hasDirectionColumn) row[headers.direction] = directionStr;
 
         return row;
     }
@@ -178,7 +184,8 @@ export class GoogleSheetsClient {
      * @throws {Error} - если не удалось найти лист для citySlug="${dgisFirmData.citySlug}"
      */
     async appendPartnerRow(dgisFirmData: WrittenFirmData): Promise<void> {
-        const mapping = RegionConfigService.getPartnersSheetByFirmData(dgisFirmData);
+        const mapping =
+            RegionConfigService.getPartnersSheetByFirmData(dgisFirmData);
 
         if (!mapping) {
             throw new Error(

@@ -26,7 +26,7 @@ export class VkClient {
     async init() {
         if (this.initialized) return;
 
-        console.log("🌐 Запускаем браузер...");
+        console.log("🌐 Запуск браузера...");
 
         this.browser = await puppeteer.launch({
             headless: false,
@@ -228,14 +228,14 @@ export class VkClient {
             }
         } catch (error: any) {
             console.error("❌ Ошибка входа:", error.message);
-            console.log("💡 Войдите вручную и нажмите Enter...");
+            console.log("💡 Войдите в аккаунт вручную и нажмите Enter...");
 
             await new Promise((resolve) => {
                 process.stdin.once("data", () => resolve(null));
             });
 
             this.initialized = true;
-            console.log("✅ Продолжаем работу...\n");
+            console.log("✅ Продолжение работы...\n");
         }
     }
 
@@ -443,7 +443,7 @@ export class VkClient {
 
             if (i < firmsWithVk.length - 1) {
                 const delayTime = 5000 + Math.random() * 3000;
-                console.log(`⏳ Ждём ${Math.round(delayTime / 1000)} сек...\n`);
+                console.log(`⏳ Ожидание ${Math.round(delayTime / 1000)} сек...\n`);
                 await this.delay(delayTime);
             }
         }
