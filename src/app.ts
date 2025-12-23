@@ -25,16 +25,20 @@ import { PartnerOutreachService } from "./services/partnerOutreachService.js";
     );
 
     const writtenData = await partnerOutreachService.findPartners(
-        "Сарапул",
-        "Ресторан",
-        2
+        "Пермь",
+        "Автосервис",
+        3
     );
 
-    console.log(`
-        Количество пропаршенных заведений: ${writtenData.totalParsedFirmsCount}\n
-        Количество заведений, которым удалось написать: ${writtenData.writtenFirmsCount}\n
-        Количество заведений, которые не удалось написать: ${writtenData.totalParsedFirmsCount - writtenData.writtenFirmsCount}\n
-        `);
+    console.log(
+        `Количество пропаршенных заведений: ${
+            writtenData.totalParsedFirmsCount
+        }\nКоличество заведений, которым удалось написать: ${
+            writtenData.writtenFirmsCount
+        }\nКоличество заведений, которые не удалось написать: ${
+            writtenData.totalParsedFirmsCount - writtenData.writtenFirmsCount
+        }\n`
+    );
 
     /* 
     Основная логика:
