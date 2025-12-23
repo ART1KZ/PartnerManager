@@ -1,23 +1,29 @@
-import puppeteer from "puppeteer";
+import puppeteer, { Browser, Page } from "puppeteer";
 import type { DgisFirmData } from "../types.js";
 
 export interface VKMessageResult {
     firmName: string;
     vkLink: string;
-    status: "success" | "error" | "skipped";
+    isSuccessful: boolean;
     error?: string;
 }
 
 export class VkClient {
-    private browser: any;
-    private page: any;
+    private browser: Browser | null = null;
+    private page: Page | null = null;
     private initialized = false;
+    private readonly login: string;
+    private readonly password: string;
 
+    constructor(login: string, password: string) {
+        this.password = password;
+        this.login = login;
+    }
     private delay(ms: number): Promise<void> {
         return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
-    async init(username: string, password: string) {
+    async init() {
         if (this.initialized) return;
 
         console.log("🌐 Запускаем браузер...");
@@ -100,14 +106,14 @@ export class VkClient {
             });
             await this.page.click('input[name="login"]');
             await this.delay(500);
-            await this.page.type('input[name="login"]', username, {
+            await this.page.type('input[name="login"]', this.login, {
                 delay: 100,
             });
 
             await this.delay(1000);
 
             const continueButtons = await this.page.$$('button[type="submit"]');
-            if (continueButtons.length > 0) {
+            if (continueButtons.length > 0 ) {
                 await continueButtons[0].click();
             }
 
@@ -169,7 +175,7 @@ export class VkClient {
             });
             await this.page.click('input[name="password"]');
             await this.delay(500);
-            await this.page.type('input[name="password"]', password, {
+            await this.page.type('input[name="password"]', this.password, {
                 delay: 100,
             });
 
@@ -251,7 +257,7 @@ export class VkClient {
                 timeout: 30000,
             });
 
-            await this.delay(2500); // Уменьшили с 4000
+            await this.delay(2500);
 
             // ШАГ 1: Ищем и кликаем "Write message"
             const correctSelector =
@@ -259,7 +265,7 @@ export class VkClient {
 
             try {
                 await this.page.waitForSelector(correctSelector, {
-                    timeout: 8000, // Уменьшили с 10000
+                    timeout: 8000,
                     visible: true,
                 });
             } catch (e) {
@@ -268,7 +274,7 @@ export class VkClient {
                     return {
                         firmName: screenName,
                         vkLink: vkLink,
-                        status: "error",
+                        isSuccessful: false,
                         error: "Кнопка 'Write message' не найдена",
                     };
                 }
@@ -301,7 +307,7 @@ export class VkClient {
                     return {
                         firmName: screenName,
                         vkLink: vkLink,
-                        status: "error",
+                        isSuccessful: false,
                         error: "Не удалось открыть мессенджер",
                     };
                 }
@@ -338,7 +344,7 @@ export class VkClient {
                 return {
                     firmName: screenName,
                     vkLink: vkLink,
-                    status: "error",
+                    isSuccessful: false,
                     error: "Поле ввода не найдено",
                 };
             }
@@ -399,13 +405,13 @@ export class VkClient {
             return {
                 firmName: screenName,
                 vkLink: vkLink,
-                status: "success",
+                isSuccessful: true
             };
         } catch (error: any) {
             return {
                 firmName: screenName,
                 vkLink: vkLink,
-                status: "error",
+                isSuccessful: false,
                 error: error.message,
             };
         }
@@ -429,7 +435,7 @@ export class VkClient {
             const result = await this.sendMessage(firm.vkLink!, message);
             results.push(result);
 
-            if (result.status === "success") {
+            if (result.isSuccessful === true) {
                 console.log(`✅ Отправлено\n`);
             } else {
                 console.log(`❌ Ошибка: ${result.error}\n`);
@@ -443,9 +449,9 @@ export class VkClient {
         }
 
         const successCount = results.filter(
-            (r) => r.status === "success"
+            (r) => r.isSuccessful === true
         ).length;
-        const errorCount = results.filter((r) => r.status === "error").length;
+        const errorCount = results.filter((r) => r.isSuccessful === false).length;
 
         console.log(
             `\n✅ Завершено! Успешно: ${successCount} | Ошибок: ${errorCount}`

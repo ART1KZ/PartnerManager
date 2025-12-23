@@ -1,6 +1,8 @@
 import axios from "axios";
 import { URL } from "url";
-import type { DgisFirmData } from "../types.js"
+import type { DgisFirmData } from "../types.js";
+
+type IsDuplicateCandidate = (candidate: Partial<DgisFirmData>) => boolean;
 
 export class DgisClient {
     // Базовый домен 2ГИС (ПК-версия)
@@ -105,7 +107,7 @@ export class DgisClient {
         const u = new URL(firmUrl);
         const parts = u.pathname.split("/").filter(Boolean);
         const firmId = parts[parts.length - 1] as string;
-        const citySlug = parts[0];
+        const citySlug = parts[0]!;
 
         const state = this.extractStateFromHtml(html);
 
@@ -181,18 +183,14 @@ export class DgisClient {
         const primaryRubric = rubricsList.find(
             (r: any) => r.kind === "primary"
         );
-        const category = primaryRubric ? primaryRubric.name.toLowerCase() : null;
-        
-        const vkLink = flatContacts
-            .filter((c: any) =>
-                [
-                    "vkontakte",
-                    "vk",
-                ].includes(c.type)
-            )
-            .map((c: any) => (
-                c.url
-            ))[0] || null;
+        const category = primaryRubric
+            ? primaryRubric.name.toLowerCase()
+            : null;
+
+        const vkLink =
+            flatContacts
+                .filter((c: any) => ["vkontakte", "vk"].includes(c.type))
+                .map((c: any) => c.url)[0] || null;
 
         const rubrics = Array.isArray(entity.rubrics)
             ? entity.rubrics.map((r: any) => r.name)
@@ -209,7 +207,7 @@ export class DgisClient {
             website,
             vkLink,
             rubrics,
-            citySlug,
+            citySlug
         };
     }
 
@@ -233,13 +231,22 @@ export class DgisClient {
         return this.parseFirmFromHtml(html, firmUrl);
     }
 
-    // Полный цикл: поиск -> ссылки карточек -> параллельный сбор объектов
+    /**
+     * Поиск фирм по городу/категории
+     * @param {string} city - город
+     * @param {string} category - категория
+     * @param {number} pages - количество страниц поиска
+     * @param {number} concurrency - количество одновременных запросов
+     * @param {Set<string>} skipIds - множество ID фирм, которые нужно пропустить
+     * @returns массив объектов фирм
+     */
     async fetchFirmsFromSearch(
         city: string,
         category: string,
         pages = 1,
-        concurrency = 3
-    ) {
+        concurrency = 3,
+        isDuplicateCandidate?: IsDuplicateCandidate
+    ): Promise<DgisFirmData[]> {
         const allFirmUrls = new Set<string>();
 
         // Собираем ссылки заведений с N страниц поиска
@@ -250,7 +257,12 @@ export class DgisClient {
                 page
             );
             const urls = this.extractFirmUrlsFromSearchHtml(html);
-            urls.forEach((u) => allFirmUrls.add(u));
+            urls.forEach((u) => {
+                console.log(u);
+                if (isDuplicateCandidate && isDuplicateCandidate({ url: u }))
+                    return;
+                allFirmUrls.add(u);
+            });
         }
 
         const queue = [...allFirmUrls];
@@ -265,7 +277,10 @@ export class DgisClient {
                 try {
                     const firmObj = await this.fetchFirmData(firmUrl);
 
-                    const hasVkOrEmail = firmObj.vkLink || firmObj.emails.length > 0;
+                    if (isDuplicateCandidate && isDuplicateCandidate(firmObj))
+                        continue;
+                    const hasVkOrEmail =
+                        firmObj.vkLink || firmObj.emails.length > 0;
 
                     if (!hasVkOrEmail) continue;
 

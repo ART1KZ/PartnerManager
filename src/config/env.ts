@@ -13,11 +13,13 @@ export const env = {
         spreadsheetId: requireEnv("GOOGLE_SPREADSHEET_ID"),
     },
     vk: {
-        username: requireEnv("VK_USERNAME"),
+        login: requireEnv("VK_LOGIN"),
         password: requireEnv("VK_PASSWORD"),
     },
     mail: {
-        user: requireEnv("MAIL_USER"),
+        login: requireEnv("MAIL_LOGIN"),
         password: requireEnv("MAIL_PASSWORD"),
     }
-};
+} as const;
+
+export type EnvType = typeof env;

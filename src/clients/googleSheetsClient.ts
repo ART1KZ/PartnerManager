@@ -1,23 +1,28 @@
 import { GoogleSpreadsheet } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
-import { env } from "../config/env.js";
-import { regions } from "../config/regions.js";
-import type { DgisFirmData, UniquePartnerDatasInSheet } from "../types.js";
+import type { HeadersType } from "../config/regions.js";
+import type {
+    ExistingPartnerDatasInSheet,
+    WrittenFirmData,
+} from "../types.js";
+import { RegionConfigService } from "../services/regionConfigService.js";
 
 type Cell = string | number | boolean | null;
 
 export class GoogleSheetsClient {
-    private doc: GoogleSpreadsheet;
+    private readonly doc: GoogleSpreadsheet;
     private initialized = false;
 
-    constructor() {
+    constructor(email: string, serviceKey: string, spreadsheetId: string) {
         const auth = new JWT({
-            email: env.spreadsheets.serviceEmail,
-            key: env.spreadsheets.serviceKey.replace(/\\n/g, "\n"),
+            email,
+            key: serviceKey.includes("\\n")
+                ? serviceKey.replace(/\\n/g, "\n")
+                : serviceKey,
             scopes: ["https://www.googleapis.com/auth/spreadsheets"],
         });
 
-        this.doc = new GoogleSpreadsheet(env.spreadsheets.spreadsheetId, auth);
+        this.doc = new GoogleSpreadsheet(spreadsheetId, auth);
     }
 
     private async init() {
@@ -60,43 +65,18 @@ export class GoogleSheetsClient {
     // --------- Хелперы для поиска листа / города ---------
 
     /**
-     * Находит конфиг листа и русское имя города по slug из dgisFirmData.
-     * Возвращает null, если подходящий город не найден.
+     * Добавление партнёров в Google Sheets
+     *          по данным о фирмах из 2ГИС
+     * @param {DgisFirmData[]} firms - данные о фирмах из 2ГИС
+     * @returns Promise, который резолвится,
+     *          когда все партнёры добавлены
      */
-    getPartnersSheetByFirmData(
-        dgisFirmData: DgisFirmData
-    ): { sheetConfig: any; cityName: string } | null {
-        let sheetConfig: any | null = null;
-        let cityName: string | null = null;
-
-        for (const regionKey in regions) {
-            if (sheetConfig) break;
-
-            const region = regions[regionKey];
-            for (const cityData of region.cities) {
-                if (cityData.dgisName !== dgisFirmData.citySlug) continue;
-
-                sheetConfig = region.sheet;
-                cityName = cityData.name;
-                break;
-            }
-        }
-
-        if (!sheetConfig || !cityName) return null;
-
-        return { sheetConfig, cityName };
-    }
-
-    /**
-     * Массовое добавление партнёров
-     * Группирует по листам и добавляет батчами
-     */
-    async appendPartnerRows(firms: DgisFirmData[]): Promise<void> {
+    async appendPartnerRows(firms: WrittenFirmData[]): Promise<void> {
         // Группируем фирмы по листам
-        const firmsBySheet = new Map<string, DgisFirmData[]>();
+        const firmsBySheet = new Map<string, WrittenFirmData[]>();
 
         for (const firm of firms) {
-            const mapping = this.getPartnersSheetByFirmData(firm);
+            const mapping = RegionConfigService.getPartnersSheetByFirmData(firm);
             if (!mapping) {
                 console.warn(
                     `Пропуск: лист не найден для citySlug="${firm.citySlug}"`
@@ -116,21 +96,10 @@ export class GoogleSheetsClient {
         }
 
         for (const [sheetName, sheetFirms] of firmsBySheet) {
-            const mapping = this.getPartnersSheetByFirmData(sheetFirms[0]);
+            const mapping = RegionConfigService.getPartnersSheetByFirmData(sheetFirms[0]);
             if (!mapping) continue;
 
-            const uniquePartnerDatasInSheet =
-                await this.getUniquePartnerDatasInSheet(
-                    mapping.sheetConfig.name,
-                    mapping.sheetConfig.headers
-                );
-
-            const newFirms = sheetFirms.filter(
-                (firmData) =>
-                    !this.isExistingFirm(uniquePartnerDatasInSheet, firmData)
-            );
-
-            const rows = newFirms.map((firm) =>
+            const rows = sheetFirms.map((firm) =>
                 this.convertFirmToRow(firm, mapping)
             );
 
@@ -141,11 +110,8 @@ export class GoogleSheetsClient {
         }
     }
 
-    /**
-     * Преобразование DgisFirmData в строку таблицы
-     */
     private convertFirmToRow(
-        dgisFirmData: DgisFirmData,
+        firmData: WrittenFirmData,
         mapping: { sheetConfig: any; cityName: string }
     ): Record<string, Cell> {
         const { sheetConfig, cityName } = mapping;
@@ -153,63 +119,66 @@ export class GoogleSheetsClient {
 
         // Телефоны
         const phonesStr =
-            dgisFirmData.phones && dgisFirmData.phones.length > 0
-                ? `'${dgisFirmData.phones.join(", ")}`
+            firmData.phones && firmData.phones.length > 0
+                ? `'${firmData.phones.join(", ")}`
                 : "";
 
         // Email'ы
         const emailsStr =
-            dgisFirmData.emails && dgisFirmData.emails.length > 0
-                ? dgisFirmData.emails.join(", ")
+            firmData.emails && firmData.emails.length > 0
+                ? firmData.emails.join(", ")
                 : "";
 
-        const messenger = dgisFirmData.vkLink ? "ВК" : "";
+        const messenger = firmData.vkLink ? "ВК" : "";
 
-        const social = dgisFirmData.vkLink || "";
+        const social = firmData.vkLink || "";
 
         const hasDateColumn = Boolean(headers.date);
         const dateStr = new Date().toLocaleDateString("ru-RU");
 
-        let infoStr = "";
+        const actions = [];
 
-        dgisFirmData.vkLink ? (infoStr += "в вк") : null;
-        dgisFirmData.emails.length > 0
-            ? (infoStr += infoStr.length > 0 ? " и на почту" : "на почту")
-            : null;
+        if (firmData.writtenData.isSendVkMessage) actions.push("в ВК");
+        if (firmData.writtenData.isSendMailMessage) actions.push("на почту");
 
-        infoStr = "Написал " + infoStr;
+        const infoParts = [
+            actions.length > 0
+                ? `Написал ${actions.join(" и ")}`
+                : "Не удалось написать: почта не валидна или группа в ВК не принимает сообщения",
+        ];
 
-        if (!hasDateColumn) {
-            infoStr += ` ${dateStr}`;
-        }
+        if (!hasDateColumn) infoParts.push(dateStr);
+
+        const infoStr = infoParts.join(" ");
 
         const row: Record<string, Cell> = {};
 
         // Маппинг на реальные заголовки таблицы
         row[headers.city] = cityName;
-        row[headers.partnerName] = dgisFirmData.category
-            ? `${dgisFirmData.name}, ${dgisFirmData.category}`
-            : dgisFirmData.name || "";
+        row[headers.partnerName] = firmData.category
+            ? `${firmData.name}, ${firmData.category}`
+            : firmData.name || "";
         row[headers.phone] = phonesStr;
         row[headers.messenger] = messenger;
         row[headers.email] = emailsStr;
         row[headers.social] = social;
         row[headers.info] = infoStr;
         row[headers.caller] = "Бот-менеджер";
-        row[headers.dgisId] = dgisFirmData.id ? dgisFirmData.id : "";
+        row[headers.dgisId] = firmData.id ? firmData.id : "";
 
-        if (hasDateColumn) {
-            row[headers.date] = dateStr;
-        }
+        if (hasDateColumn) row[headers.date] = dateStr;
 
         return row;
     }
 
     /**
-     * Добавление одного партнёра (для единичных случаев)
+     * Добавляет строку в таблицу партнёров с данными фирмы из 2ГИС
+     * @param {DgisFirmData} dgisFirmData - данные фирмы из 2ГИС
+     * @returns {Promise<void>} - пустой Promise, который выполнится после добавления строки
+     * @throws {Error} - если не удалось найти лист для citySlug="${dgisFirmData.citySlug}"
      */
-    async appendPartnerRow(dgisFirmData: DgisFirmData): Promise<void> {
-        const mapping = this.getPartnersSheetByFirmData(dgisFirmData);
+    async appendPartnerRow(dgisFirmData: WrittenFirmData): Promise<void> {
+        const mapping = RegionConfigService.getPartnersSheetByFirmData(dgisFirmData);
 
         if (!mapping) {
             throw new Error(
@@ -217,20 +186,6 @@ export class GoogleSheetsClient {
             );
         }
 
-        const uniquePartnerDatasInSheet =
-            await this.getUniquePartnerDatasInSheet(
-                mapping.sheetConfig.name,
-                mapping.sheetConfig.headers
-            );
-        const isFirmOnSheet = this.isExistingFirm(
-            uniquePartnerDatasInSheet,
-            dgisFirmData
-        );
-
-        if (isFirmOnSheet) {
-            console.log("Заведение уже есть в таблице");
-            return;
-        }
         const row = this.convertFirmToRow(dgisFirmData, mapping);
         await this.appendRow(row, mapping.sheetConfig.name);
     }
@@ -242,47 +197,22 @@ export class GoogleSheetsClient {
         return rows.map((row) => row.get(headerName));
     }
 
-    private normalizeFirmName(name: string): string {
-        return name
-            .toLowerCase()
-            .trim()
-            .replace(/\s+/g, " ") // множественные пробелы в один
-            .replace(/[«»"']/g, "") // убираем кавычки разных типов
-            .replace(/[‐–—-]/g, "-"); // нормализуем дефисы
-    }
-
-    isExistingFirm(
-        partnerUniqueDatas: UniquePartnerDatasInSheet,
-        dgisFirmData: DgisFirmData
-    ) {
-        // Приведение имени заведение к общему формату
-        const normalizedFirmName = this.normalizeFirmName(dgisFirmData.name);
-
-        return (
-            // Существует ли заведение с указанной ссылкой на ВК в листе (таблице)
-            (dgisFirmData.vkLink &&
-                partnerUniqueDatas.vks.includes(dgisFirmData.vkLink)) ||
-            // Существует ли заведение с указанным 2гис id в листе (таблице)
-            partnerUniqueDatas.dgisIds.includes(dgisFirmData.id) ||
-            // Существует ли заведение с указанными почтами в листе (таблице)
-            dgisFirmData.emails.some((email) =>
-                partnerUniqueDatas.emails.includes(email)
-            ) ||
-            partnerUniqueDatas.names.some((firmName) =>
-                this.normalizeFirmName(firmName).includes(normalizedFirmName)
-            )
-        );
-    }
-
     /**
-     * Получить уникальные данные партнёров из листа для проверки дубликатов
-     * @param sheetName - название листа (например, "Пермский край новые партнеры")
-     * @param headers - объект headers из sheetConfig (например, regions.PK.sheet.headers)
+     * Возвращает уникальные данные партнёров из таблицы партнёров по названию листа.
+     *      Уникальные данные: имена, VK-ссылки, 2GIS ID, emails.
+     *      Если в таблице нет данных по какому-либо из столбцов, то соответствующий массив будет пустым.
+     *
+     * @param {string} sheetName - имя листа
+     * @param {Record<string, string>} headers - объект, где ключ - имя столбца,
+     *      а значение - имя столбца в таблице партнёров
+     * @returns Promise, который резолвится,
+     *      когда все уникальные данные партнёров собраны
      */
-    async getUniquePartnerDatasInSheet(
+
+    async getExistingPartners(
         sheetName: string,
-        headers: Record<string, string>
-    ): Promise<UniquePartnerDatasInSheet> {
+        headers: HeadersType
+    ): Promise<ExistingPartnerDatasInSheet> {
         const rows = await this.getAllRows(sheetName);
 
         const names = new Set<string>();
@@ -291,22 +221,22 @@ export class GoogleSheetsClient {
         const emails = new Set<string>();
 
         for (const row of rows) {
-            // Собираем имена
+            // Собираем 2GIS ID
+            const dgisId = row[headers.dgisId];
+            if (dgisId && typeof dgisId === "string" && dgisId.trim()) {
+                dgisIds.add(dgisId.trim());
+            }
+
+            // Сбор имен
             const name = row[headers.partnerName];
             if (name && typeof name === "string" && name.trim()) {
                 names.add(name.trim());
             }
 
-            // Собираем VK ссылки
+            // Сбор ссылок на группы в VK
             const vk = row[headers.social];
             if (vk && typeof vk === "string" && vk.trim()) {
                 vks.add(vk.trim());
-            }
-
-            // Собираем 2GIS ID
-            const dgisId = row[headers.dgisId];
-            if (dgisId && typeof dgisId === "string" && dgisId.trim()) {
-                dgisIds.add(dgisId.trim());
             }
 
             // Собираем emails (может быть несколько через запятую)
@@ -321,9 +251,9 @@ export class GoogleSheetsClient {
         }
 
         return {
+            dgisIds: Array.from(dgisIds),
             names: Array.from(names),
             vks: Array.from(vks),
-            dgisIds: Array.from(dgisIds),
             emails: Array.from(emails),
         };
     }
