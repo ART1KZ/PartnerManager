@@ -1,5 +1,11 @@
 import nodemailer, { Transporter } from "nodemailer";
 
+export interface MailMessageResult {
+    email: string;
+    isSuccessful: boolean;
+    error?: string;
+}
+
 export class MailClient {
     private transporter: Transporter;
 
@@ -10,23 +16,35 @@ export class MailClient {
             secure: true,
             auth: {
                 user: userMail,
-                pass: userPassword
+                pass: userPassword,
             },
         });
     }
 
-    async send(to: string, subject: string, html: string) {
+    async sendMessage(
+        to: string,
+        subject: string,
+        html: string
+    ): Promise<MailMessageResult> {
         try {
-            await this.transporter.sendMail({
+            const message = await this.transporter.sendMail({
                 from: this.transporter.options.auth?.user,
                 to,
                 subject,
                 html,
             });
-            return true;
-        } catch (error) {
+
+            return {
+                email: to,
+                isSuccessful: true,
+            };
+        } catch (error: any) {
             console.error(`❌ Ошибка отправки email:`, error);
-            return false;
+            return {
+                email: to,
+                isSuccessful: false,
+                error: error.message,
+            };
         }
     }
 }

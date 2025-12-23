@@ -20,7 +20,9 @@ import { PartnerOutreachService } from "./services/partnerOutreachService.js";
         dgisClient, googleSheetsClient, mailClient, vkClient
     )
 
-    await partnerOutreachService.findPartners("Пермь", "Ресторан");
+    const writtenData = await partnerOutreachService.findPartners("Пермь", "Ресторан");
+
+    console.log(writtenData)
 
     /* 
     Основная логика:

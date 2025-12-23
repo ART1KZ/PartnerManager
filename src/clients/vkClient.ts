@@ -4,7 +4,7 @@ import type { DgisFirmData } from "../types.js";
 export interface VKMessageResult {
     firmName: string;
     vkLink: string;
-    status: "success" | "error" | "skipped";
+    isSuccessful: boolean;
     error?: string;
 }
 
@@ -274,7 +274,7 @@ export class VkClient {
                     return {
                         firmName: screenName,
                         vkLink: vkLink,
-                        status: "error",
+                        isSuccessful: false,
                         error: "Кнопка 'Write message' не найдена",
                     };
                 }
@@ -307,7 +307,7 @@ export class VkClient {
                     return {
                         firmName: screenName,
                         vkLink: vkLink,
-                        status: "error",
+                        isSuccessful: false,
                         error: "Не удалось открыть мессенджер",
                     };
                 }
@@ -344,7 +344,7 @@ export class VkClient {
                 return {
                     firmName: screenName,
                     vkLink: vkLink,
-                    status: "error",
+                    isSuccessful: false,
                     error: "Поле ввода не найдено",
                 };
             }
@@ -405,13 +405,13 @@ export class VkClient {
             return {
                 firmName: screenName,
                 vkLink: vkLink,
-                status: "success",
+                isSuccessful: true
             };
         } catch (error: any) {
             return {
                 firmName: screenName,
                 vkLink: vkLink,
-                status: "error",
+                isSuccessful: false,
                 error: error.message,
             };
         }
@@ -435,7 +435,7 @@ export class VkClient {
             const result = await this.sendMessage(firm.vkLink!, message);
             results.push(result);
 
-            if (result.status === "success") {
+            if (result.isSuccessful === true) {
                 console.log(`✅ Отправлено\n`);
             } else {
                 console.log(`❌ Ошибка: ${result.error}\n`);
@@ -449,9 +449,9 @@ export class VkClient {
         }
 
         const successCount = results.filter(
-            (r) => r.status === "success"
+            (r) => r.isSuccessful === true
         ).length;
-        const errorCount = results.filter((r) => r.status === "error").length;
+        const errorCount = results.filter((r) => r.isSuccessful === false).length;
 
         console.log(
             `\n✅ Завершено! Успешно: ${successCount} | Ошибок: ${errorCount}`

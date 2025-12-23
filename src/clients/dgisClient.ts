@@ -107,7 +107,7 @@ export class DgisClient {
         const u = new URL(firmUrl);
         const parts = u.pathname.split("/").filter(Boolean);
         const firmId = parts[parts.length - 1] as string;
-        const citySlug = parts[0];
+        const citySlug = parts[0]!;
 
         const state = this.extractStateFromHtml(html);
 
@@ -207,7 +207,7 @@ export class DgisClient {
             website,
             vkLink,
             rubrics,
-            citySlug,
+            citySlug
         };
     }
 

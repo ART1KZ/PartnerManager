@@ -33,7 +33,7 @@ export interface DgisFirmData {
     website: string | null;
     vkLink: string | null;
     rubrics: string[];
-    citySlug?: string;
+    citySlug: string;
 }
 
 export interface WrittenFirmData extends DgisFirmData {

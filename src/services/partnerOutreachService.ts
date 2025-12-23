@@ -1,4 +1,8 @@
-import type { DgisFirmData, ExistingPartnerDatasInSheet, WrittenFirmData } from "../types.js";
+import type {
+    DgisFirmData,
+    ExistingPartnerDatasInSheet,
+    WrittenFirmData,
+} from "../types.js";
 import { DgisClient } from "../clients/dgisClient.js";
 import { GoogleSheetsClient } from "../clients/googleSheetsClient.js";
 import { VkClient } from "../clients/vkClient.js";
@@ -43,19 +47,91 @@ export class PartnerOutreachService {
             return this.isExistingFirm(existingFirms, candidate);
         };
 
+        const pagesCount = 1;
         const parsedFirms = await this.dgisClient.fetchFirmsFromSearch(
             dgisCitySlug,
             categoryName,
-            2,
+            pagesCount,
             3,
             isDupliсateCandidate
         );
 
-        const processedFirms: WrittenFirmData[] = [];
+        if (parsedFirms.length === 0) {
+            throw new Error(`Нет заведений в городе "${cityName}"`);
+        }
+        const writtenFirms: WrittenFirmData[] = [];
 
-        // TODO: доделать логику обработки отправки сообщений с последующей записью в таблицу
+        await this.vkClient.init();
+
+        for (const firm of parsedFirms) {
+            console.log(firm)
+            let isSendMailMessage = false;
+            let isSendVkMessage = false;
+
+            const message = RegionConfigService.getRegionMessage(cityName);
+            const mailMessage = message?.mail;
+            const vkMessage = message?.vk;
+
+            if (firm.emails.length > 0) {
+                if (mailMessage?.subject && mailMessage?.text) {
+                    for (const email of firm.emails) {
+                        const sendedMessage = await this.mailClient.sendMessage(
+                            email,
+                            mailMessage.subject,
+                            mailMessage.text
+                        );
+
+                        if (sendedMessage.isSuccessful) {
+                            isSendMailMessage = true;
+                            console.log(
+                                `✅ Отправлено письмо заведению "${firm.name}" по почте "${email}"`
+                            );
+                        }
+                    }
+                } else {
+                    console.error(
+                        `Отсутствует текст или тема письма в конфиге региона для города "${cityName}"`
+                    );
+                }
+            }
+
+            if (firm.vkLink) {
+                if (vkMessage?.text) {
+                    const sendData = await this.vkClient.sendMessage(
+                        firm.vkLink,
+                        vkMessage.text
+                    );
+
+                    if (sendData.isSuccessful) {
+                        isSendVkMessage = true;
+                        console.log(
+                            `✅ Отправлено VK сообщение для заведения "${firm.name}" по ссылке "${firm.vkLink}"`
+                        );
+                    }
+                } else {
+                    console.error(
+                        `Отсутствует текст VK сообщения в конфиге региона для города для города "${cityName}"`
+                    );
+                }
+            }
+
+            const writtenFirmData: WrittenFirmData = {
+                ...firm,
+                writtenData: { isSendMailMessage, isSendVkMessage },
+            };
             
+            writtenFirms.push(writtenFirmData);
 
+            await this.googleSheetsClient.appendPartnerRow(writtenFirmData);
+        }
+
+        return {
+            totalParsedFirmCount: parsedFirms.length,
+            writtenFirmsCount: writtenFirms.filter((f) => f.writtenData.isSendMailMessage || f.writtenData.isSendVkMessage).length,
+            unwritenFirmCount: writtenFirms.filter((f) => !f.writtenData.isSendMailMessage && !f.writtenData.isSendVkMessage).length,
+            succesVkCount: writtenFirms.filter((f) => f.writtenData.isSendVkMessage).length,
+            succesMailCount: writtenFirms.filter((f) => f.writtenData.isSendMailMessage).length
+        };
     }
 
     /**

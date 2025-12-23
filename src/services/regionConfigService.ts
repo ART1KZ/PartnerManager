@@ -80,4 +80,14 @@ export class RegionConfigService {
 
         return { sheetConfig, cityName };
     }
+
+    static getRegionMessage(cityName: string) {
+        const region = this.getRegion(cityName);
+
+        if (!region?.message) {
+            return null;
+        }
+
+        return region.message;
+    }
 }

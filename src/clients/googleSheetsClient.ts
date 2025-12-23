@@ -144,10 +144,10 @@ export class GoogleSheetsClient {
         const infoParts = [
             actions.length > 0
                 ? `Написал ${actions.join(" и ")}`
-                : "Не удалось написать",
+                : "Не удалось написать: почта не валидна или группа в ВК не принимает сообщения",
         ];
 
-        if (hasDateColumn) infoParts.push(dateStr);
+        if (!hasDateColumn) infoParts.push(dateStr);
 
         const infoStr = infoParts.join(" ");
 
@@ -166,9 +166,7 @@ export class GoogleSheetsClient {
         row[headers.caller] = "Бот-менеджер";
         row[headers.dgisId] = firmData.id ? firmData.id : "";
 
-        if (hasDateColumn) {
-            row[headers.date] = dateStr;
-        }
+        if (hasDateColumn) row[headers.date] = dateStr;
 
         return row;
     }
