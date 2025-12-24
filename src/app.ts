@@ -6,7 +6,7 @@ import { env } from "./config/env.js";
 import { PartnerOutreachService } from "./services/partnerOutreachService.js";
 
 (async () => {
-    console.log("Поиск партнеров ");
+    console.log("Поиск партнеров");
 
     const dgisClient = new DgisClient();
     const googleSheetsClient = new GoogleSheetsClient(
@@ -25,20 +25,20 @@ import { PartnerOutreachService } from "./services/partnerOutreachService.js";
     );
 
     const writtenData = await partnerOutreachService.findPartners(
-        "Пермь",
+        "Ижевск",
         "Автосервис",
         3
     );
 
-    console.log(
-        `Количество пропаршенных заведений: ${
-            writtenData.totalParsedFirmsCount
-        }\nКоличество заведений, которым удалось написать: ${
-            writtenData.writtenFirmsCount
-        }\nКоличество заведений, которые не удалось написать: ${
-            writtenData.totalParsedFirmsCount - writtenData.writtenFirmsCount
-        }\n`
-    );
+    // console.log(
+    //     `Количество пропаршенных заведений: ${
+    //         writtenData.totalParsedFirmsCount
+    //     }\nКоличество заведений, которым удалось написать: ${
+    //         writtenData.writtenFirmsCount
+    //     }\nКоличество заведений, которые не удалось написать: ${
+    //         writtenData.totalParsedFirmsCount - writtenData.writtenFirmsCount
+    //     }\n`
+    // );
 
     /* 
     Основная логика:

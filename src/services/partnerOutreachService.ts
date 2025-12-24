@@ -27,8 +27,19 @@ export class PartnerOutreachService {
         this.vkClient = vkClient;
     }
 
-    async findPartners(cityName: string, categoryName: string, candidatesCountGoal: number) {
+    async findPartners(
+        cityName: string,
+        categoryName: string,
+        candidatesCountGoal: number
+    ) {
+        const dgisCitySlug = RegionConfigService.getCitySlug(cityName);
+        if (!dgisCitySlug) {
+            throw new Error(`Slug города "${cityName}" не найден`);
+        }
+
         const sheet = RegionConfigService.getPartnersSheetByCityName(cityName);
+        const oldSheet =
+            RegionConfigService.getPartnersOldSheetByCityName(cityName);
 
         if (!sheet)
             throw new Error(`Лист региона для города "${cityName}" не найден`);
@@ -38,9 +49,21 @@ export class PartnerOutreachService {
             sheet.headers
         );
 
-        const dgisCitySlug = RegionConfigService.getCitySlug(cityName);
-        if (!dgisCitySlug) {
-            throw new Error(`Slug города "${cityName}" не найден`);
+        // Добавление уже существующих партнеров из старого листа региона (если такой есть)
+        if (oldSheet) {
+            const oldExistingPartners =
+                await this.googleSheetsClient.getExistingPartners(
+                    oldSheet.name,
+                    oldSheet.headers
+                );
+
+            for (let key in oldExistingPartners) {
+                const existingFirmsKey =
+                    key as keyof ExistingPartnerDatasInSheet;
+                existingFirms[existingFirmsKey].push(
+                    ...oldExistingPartners[existingFirmsKey]
+                );
+            }
         }
 
         const isDupliсateCandidate = (candidate: Partial<DgisFirmData>) => {
@@ -54,8 +77,6 @@ export class PartnerOutreachService {
             isDupliсateCandidate
         );
 
-        console.log(parsedFirms);
-        
         if (parsedFirms.length === 0) {
             throw new Error(`Нет заведений в городе "${cityName}"`);
         }
@@ -64,7 +85,7 @@ export class PartnerOutreachService {
         await this.vkClient.init();
 
         for (const firm of parsedFirms) {
-            console.log(firm)
+            console.log(firm);
             let isSendMailMessage = false;
             let isSendVkMessage = false;
 
@@ -119,7 +140,7 @@ export class PartnerOutreachService {
                 ...firm,
                 writtenData: { isSendMailMessage, isSendVkMessage },
             };
-            
+
             writtenFirms.push(writtenFirmData);
 
             await this.googleSheetsClient.appendPartnerRow(writtenFirmData);
@@ -127,9 +148,17 @@ export class PartnerOutreachService {
 
         return {
             totalParsedFirmsCount: parsedFirms.length,
-            writtenFirmsCount: writtenFirms.filter((f) => f.writtenData.isSendMailMessage || f.writtenData.isSendVkMessage).length,
-            succesVkCount: writtenFirms.filter((f) => f.writtenData.isSendVkMessage).length,
-            succesMailCount: writtenFirms.filter((f) => f.writtenData.isSendMailMessage).length
+            writtenFirmsCount: writtenFirms.filter(
+                (f) =>
+                    f.writtenData.isSendMailMessage ||
+                    f.writtenData.isSendVkMessage
+            ).length,
+            succesVkCount: writtenFirms.filter(
+                (f) => f.writtenData.isSendVkMessage
+            ).length,
+            succesMailCount: writtenFirms.filter(
+                (f) => f.writtenData.isSendMailMessage
+            ).length,
         };
     }
 

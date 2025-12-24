@@ -1,6 +1,6 @@
 import { GoogleSpreadsheet } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
-import type { HeadersType } from "../config/regions.js";
+import type { HeadersType, OldHeadersType } from "../config/regions.js";
 import type { ExistingPartnerDatasInSheet, WrittenFirmData } from "../types.js";
 import { RegionConfigService } from "../services/regionConfigService.js";
 
@@ -218,7 +218,7 @@ export class GoogleSheetsClient {
 
     async getExistingPartners(
         sheetName: string,
-        headers: HeadersType
+        headers: HeadersType | OldHeadersType
     ): Promise<ExistingPartnerDatasInSheet> {
         const rows = await this.getAllRows(sheetName);
 
@@ -229,25 +229,25 @@ export class GoogleSheetsClient {
 
         for (const row of rows) {
             // Собираем 2GIS ID
-            const dgisId = row[headers.dgisId];
+            const dgisId = row[headers?.dgisId];
             if (dgisId && typeof dgisId === "string" && dgisId.trim()) {
                 dgisIds.add(dgisId.trim());
             }
 
             // Сбор имен
-            const name = row[headers.partnerName];
+            const name = row[headers?.partnerName];
             if (name && typeof name === "string" && name.trim()) {
                 names.add(name.trim());
             }
 
             // Сбор ссылок на группы в VK
-            const vk = row[headers.social];
+            const vk = row[headers?.social];
             if (vk && typeof vk === "string" && vk.trim()) {
                 vks.add(vk.trim());
             }
 
             // Собираем emails (может быть несколько через запятую)
-            const emailStr = row[headers.email];
+            const emailStr = row[headers?.email];
             if (emailStr && typeof emailStr === "string" && emailStr.trim()) {
                 const emailList = emailStr
                     .split(",")

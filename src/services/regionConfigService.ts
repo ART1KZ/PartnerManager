@@ -1,4 +1,4 @@
-import { regions, RegionKey, RegionsType, SheetConfig } from "../config/regions.js";
+import { regions, RegionKey, RegionsType, SheetConfig, OldSheetConfig } from "../config/regions.js";
 import { DgisFirmData } from "../types.js";
 
 export class RegionConfigService {
@@ -49,6 +49,28 @@ export class RegionConfigService {
         }
         return null;
     }
+
+        /**
+     * Возвращает конфигурацию листа партнёров по имени города.
+     *      Если город не найден в config/regions.js, то возвращает null.
+     *
+     * @param {string} cityName - имя города
+     * @returns - конфигурация листа партнёров или null, если город не найден
+     */
+    static getPartnersOldSheetByCityName(cityName: string): OldSheetConfig | null {
+        const region = this.getRegion(cityName);
+
+        if (!region) {
+            return null;
+        }
+
+        for (const cityData of region.cities) {
+            if (cityData.name !== cityName) continue;
+            return region.oldSheet;
+        }
+        return null;
+    }
+
 
     /**
      * Возвращает конфигурацию листа и имя города, если данные о фирме из 2ГИС

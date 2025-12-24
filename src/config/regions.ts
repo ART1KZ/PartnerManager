@@ -36,6 +36,15 @@ export const regions = {
                 dgisId: "2гис id",
             },
         },
+        oldSheet: {
+            name: "Пермский край",
+            headers: {
+                city: "Город",
+                partnerName: "Партнер название",
+                phone: "тел. для связи",
+                social: "Соц.сеть",
+            },
+        },
         cities: [
             { name: "Пермь", dgisSlug: "perm" },
             { name: "Березники", dgisSlug: "berezniki" },
@@ -83,7 +92,15 @@ export const regions = {
                 dgisId: "2гис id",
             },
         },
+        oldSheet: {
+            name: "Удмуртия старые",
+            headers: {
+                partnerName: "партнер",
+                phone: "Телефон",
+            },
+        },
         cities: [
+            { name: "Ижевск", dgisSlug: "izhevsk" },
             { name: "Глазов", dgisSlug: "glazov" },
             { name: "Сарапул", dgisSlug: "sarapul" },
         ],
@@ -112,6 +129,8 @@ export const regions = {
 } as const;
 
 export type RegionsType = typeof regions;
-export type RegionKey = keyof typeof regions; 
-export type SheetConfig = RegionsType[RegionKey]['sheet'];
-export type HeadersType = SheetConfig['headers'];
+export type RegionKey = keyof typeof regions;
+export type SheetConfig = RegionsType[RegionKey]["sheet"];
+export type OldSheetConfig = RegionsType[RegionKey]["oldSheet"];
+export type HeadersType = SheetConfig["headers"];
+export type OldHeadersType = OldSheetConfig["headers"];
